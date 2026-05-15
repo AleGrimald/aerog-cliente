@@ -48,7 +48,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/login`, {
+      const response = await fetch('https://aerog-server.vercel.app/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
