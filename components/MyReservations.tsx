@@ -322,10 +322,6 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                     {reserva.nombre} {reserva.apellido}
                   </p>
                   <p className="text-sm text-slate-500">{reserva.email}</p>
-                  <p className="mt-2 text-sm font-medium text-slate-600">Asiento</p>
-                  <p className="text-base font-semibold text-slate-900">
-                    {reserva.numero_asiento || 'No asignado'}
-                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-600">Fecha de Reserva</p>
