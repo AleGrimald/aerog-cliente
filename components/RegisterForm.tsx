@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { API_URL } from '@/lib/api';
 
 export default function RegisterForm() {
   const [formData, setFormData] = useState({
@@ -76,7 +75,7 @@ export default function RegisterForm() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/register`, {
+      const response = await fetch(`http://localhost:5000/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,3 +270,4 @@ export default function RegisterForm() {
     </form>
   );
 }
+

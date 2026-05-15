@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { API_URL } from '@/lib/api';
 
 interface DatosTitular {
   nombre: string;
@@ -201,7 +200,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     setGuardandoPasajero(true);
 
     try {
-      const response = await fetch(`${API_URL}/register`, {
+      const response = await fetch(`http://localhost:5000/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -239,7 +238,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
   useEffect(() => {
     const cargarTarjetas = async () => {
       try {
-        const response = await fetch(`${API_URL}/tarjeta-usuario/${usuario.usuario_id}`);
+        const response = await fetch(`http://localhost:5000/tarjeta-usuario/${usuario.usuario_id}`);
         const data = await response.json();
         if (response.ok && Array.isArray(data.tarjetas)) {
           setTarjetasGuardadas(data.tarjetas);
@@ -300,7 +299,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         pasajeros_adicionales: pasajeros_adicionales_ids,
         estado: 'pendiente',
       };
-      const response = await fetch(`${API_URL}/confirmar-reserva`, {
+      const response = await fetch(`http://localhost:5000/confirmar-reserva`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -362,7 +361,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         pasajeros_adicionales: pasajeros_adicionales_ids,
         estado: 'pendiente',
       };
-      const responseReserva = await fetch(`${API_URL}/confirmar-reserva`, {
+      const responseReserva = await fetch(`http://localhost:5000/confirmar-reserva`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadReserva),
@@ -382,7 +381,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         tipo: tipoPago,
         cuotas: tipoPago === 'credito' ? cuotas : 1,
       };
-      const responsePago = await fetch(`${API_URL}/pagar-reserva`, {
+      const responsePago = await fetch(`http://localhost:5000/pagar-reserva`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadPago),
@@ -899,3 +898,4 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     </>
   );
 }
+

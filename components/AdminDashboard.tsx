@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { API_URL } from '@/lib/api';
 
 interface UsuarioAdmin {
   usuario_id: number;
@@ -207,11 +206,11 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     limpiarMensajes();
     try {
       const [resAeropuertos, resVuelos, resUsuarios, resReservas, resStats] = await Promise.all([
-        fetch(`${API_URL}/admin/aeropuertos`),
-        fetch(`${API_URL}/admin/vuelos`),
-        fetch(`${API_URL}/admin/usuarios`),
-        fetch(`${API_URL}/admin/reservas`),
-        fetch(`${API_URL}/admin/estadisticas`),
+        fetch(`http://localhost:5000/admin/aeropuertos`),
+        fetch(`http://localhost:5000/admin/vuelos`),
+        fetch(`http://localhost:5000/admin/usuarios`),
+        fetch(`http://localhost:5000/admin/reservas`),
+        fetch(`http://localhost:5000/admin/estadisticas`),
       ]);
 
       const [dataAeropuertos, dataVuelos, dataUsuarios, dataReservas, dataStats] = await Promise.all([
@@ -287,8 +286,8 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     try {
       const isEdit = editandoVueloId !== null;
       const url = isEdit
-        ? `${API_URL}/admin/vuelos/${editandoVueloId}`
-        : `${API_URL}/admin/vuelos`;
+        ? `http://localhost:5000/admin/vuelos/${editandoVueloId}`
+        : `http://localhost:5000/admin/vuelos`;
       const method = isEdit ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -320,7 +319,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
     setEliminandoVueloId(vueloId);
     try {
-      const response = await fetch(`${API_URL}/admin/vuelos/${vueloId}`, { method: 'DELETE' });
+      const response = await fetch(`http://localhost:5000/admin/vuelos/${vueloId}`, { method: 'DELETE' });
       const data = await response.json();
       if (!response.ok) {
         setError(data.error || 'No se pudo eliminar el vuelo.');
@@ -381,8 +380,8 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     try {
       const isEdit = editandoUsuarioId !== null;
       const url = isEdit
-        ? `${API_URL}/admin/usuarios/${editandoUsuarioId}`
-        : `${API_URL}/admin/usuarios`;
+        ? `http://localhost:5000/admin/usuarios/${editandoUsuarioId}`
+        : `http://localhost:5000/admin/usuarios`;
       const method = isEdit ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -414,7 +413,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
     setEliminandoUsuarioId(usuarioId);
     try {
-      const response = await fetch(`${API_URL}/admin/usuarios/${usuarioId}`, { method: 'DELETE' });
+      const response = await fetch(`http://localhost:5000/admin/usuarios/${usuarioId}`, { method: 'DELETE' });
       const data = await response.json();
       if (!response.ok) {
         setError(data.error || 'No se pudo eliminar el usuario.');
@@ -914,3 +913,4 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     </div>
   );
 }
+
