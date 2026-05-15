@@ -8,7 +8,7 @@ export const getApiUrl = () => {
   const hostname = window.location.hostname;
   
   // Si estamos en producción (Vercel)
-  if (hostname === 'aerog-cliente.vercel.app') {
+  if (hostname === 'aerog.vercel.app') {
     return 'https://aerog-server.vercel.app';
   }
   
