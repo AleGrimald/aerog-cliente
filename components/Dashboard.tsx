@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, ChangeEvent, Dispatch, SetStateAction } from 'react';
+import { API_URL } from '@/lib/api';
 import ReservationForm from './ReservationForm';
 import MyReservations from './MyReservations';
 import UserProfile from './UserProfile';
@@ -70,7 +71,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/airport-suggestions?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`${API_URL}/airport-suggestions?q=${encodeURIComponent(query)}`);
       const data = await response.json();
       if (Array.isArray(data)) {
         setter(data);
@@ -209,7 +210,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/buscar-vuelos', {
+      const response = await fetch(`${API_URL}/buscar-vuelos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
