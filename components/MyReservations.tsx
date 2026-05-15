@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/constants/api';
 // Reutilizamos la UI de pago de ReservationForm, pero aquí la lógica es para una reserva existente
 interface TarjetaGuardada {
   tarjeta_id: number;
@@ -82,7 +83,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const cargarTarjetas = async () => {
     if (!pagoModal.reserva) return;
     try {
-        const response = await fetch(`http://localhost:5000/tarjeta-usuario/${pagoModal.reserva.usuario_id}`);
+        const response = await fetch(`${API_BASE_URL}/tarjeta-usuario/${pagoModal.reserva.usuario_id}`);
       const data = await response.json();
       if (response.ok && Array.isArray(data.tarjetas)) {
         setTarjetasGuardadas(data.tarjetas);
@@ -156,7 +157,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
         cuotas: tipoPago === 'credito' ? cuotas : 1,
       };
       // Endpoint a implementar en backend: /pagar-reserva
-      const response = await fetch(`http://localhost:5000/pagar-reserva`, {
+      const response = await fetch(`${API_BASE_URL}/pagar-reserva`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -182,7 +183,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch(`http://localhost:5000/mis-reservas/${usuarioId}`);
+      const response = await fetch(`${API_BASE_URL}/mis-reservas/${usuarioId}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -205,7 +206,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const confirmarCancelacion = async () => {
     if (!modal.reservaId) return;
     try {
-      const response = await fetch(`http://localhost:5000/cancelar-reserva/${modal.reservaId}`, {
+      const response = await fetch(`${API_BASE_URL}/cancelar-reserva/${modal.reservaId}`, {
         method: 'DELETE',
       });
       const data = await response.json();

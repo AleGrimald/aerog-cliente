@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { API_BASE_URL } from '@/constants/api';
 
 interface UserProfileProps {
   usuario: any;
@@ -42,7 +43,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
   useEffect(() => {
     const cargarTarjeta = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/tarjeta-usuario/${usuario.usuario_id}`);
+        const response = await fetch(`${API_BASE_URL}/tarjeta-usuario/${usuario.usuario_id}`);
         const data = await response.json();
         if (response.ok) {
           setTarjetasGuardadas(Array.isArray(data.tarjetas) ? data.tarjetas : []);
@@ -116,7 +117,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
     }
     setErroresEdit({});
     try {
-      const response = await fetch(`http://localhost:5000/actualizar-perfil`, {
+      const response = await fetch(`${API_BASE_URL}/actualizar-perfil`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +174,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
     }
     setErroresTarjeta({});
     try {
-      const response = await fetch(`http://localhost:5000/agregar-tarjeta`, {
+      const response = await fetch(`${API_BASE_URL}/agregar-tarjeta`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -208,7 +209,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
 
     setMensaje({ tipo: '', texto: '' });
     try {
-      const response = await fetch(`http://localhost:5000/eliminar-tarjeta/${tarjetaId}`, {
+      const response = await fetch(`${API_BASE_URL}/eliminar-tarjeta/${tarjetaId}`, {
         method: 'DELETE',
       });
       const data = await response.json();
