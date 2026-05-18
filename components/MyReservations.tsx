@@ -258,20 +258,20 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   return (
     <>
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-slate-900">Mis Reservas</h2>
+      <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Mis Reservas</h2>
       <div className="space-y-4">
         {reservas.map((reserva) => (
           <div
             key={reserva.reserva_id}
-            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition"
+            className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-6"
           >
             {/* Header con código y estado */}
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Código de Vuelo</p>
                 <p className="text-lg font-bold text-slate-900">{reserva.codigo_vuelo}</p>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <p className="text-sm font-medium text-slate-600">Estado</p>
                 <span
                   className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
@@ -333,7 +333,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
             </div>
 
             {/* Precio, botón cancelar y Pagar Ahora si pendiente */}
-            <div className="flex items-center justify-between border-t border-slate-200 pt-4 gap-2 flex-wrap">
+            <div className="flex flex-col gap-4 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
               <div>
                 <p className="text-sm font-medium text-slate-600">Precio</p>
                 {reserva.estado === 'confirmada' && reserva.pago_monto ? (
@@ -361,19 +361,19 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                   </p>
                 </div>
               )}
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
                 {reserva.estado === 'pendiente' && (
                   <button
                     onClick={() => handlePagarAhora(reserva)}
-                    className="rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                    className="w-full rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
                   >
                     Pagar Ahora
                   </button>
                 )}
                     {/* Modal de pago para reservas pendientes */}
                     {pagoModal.open && pagoModal.reserva && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                        <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-xl">
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-8">
                           <h3 className="text-xl font-bold text-slate-900 mb-4">Pagar Reserva</h3>
                           <div className="mb-4">
                             <p className="mb-2 text-slate-700 font-semibold">Tarjetas guardadas:</p>
@@ -455,17 +455,17 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                           {mensajePago && (
                             <div className="mb-4 text-center text-blue-700 font-semibold">{mensajePago}</div>
                           )}
-                          <div className="flex justify-end gap-3">
+                          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                             <button
                               onClick={() => setPagoModal({ open: false, reserva: null })}
-                              className="rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+                              className="w-full rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
                             >
                               Cancelar
                             </button>
                             <button
                               onClick={handleConfirmarPago}
                               disabled={!tarjetaSeleccionada || !tipoPago}
-                              className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                              className="w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
                             >
                               Confirmar y pagar
                             </button>
@@ -520,7 +520,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                     )}
                 <button
                   onClick={() => handleCancelar(reserva.reserva_id)}
-                  className="rounded-full bg-red-600 px-6 py-3 text-sm font-semibold text-white hover:bg-red-700"
+                  className="w-full rounded-full bg-red-600 px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 sm:w-auto"
                 >
                   Cancelar
                 </button>

@@ -228,7 +228,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-900">Perfil de Usuario</h2>
+      <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Perfil de Usuario</h2>
 
       {/* Mensaje de estado */}
       {mensaje.texto && (
@@ -244,13 +244,13 @@ export default function UserProfile({ usuario }: UserProfileProps) {
       )}
 
       {/* Datos Personales */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex items-center justify-between">
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-xl font-bold text-slate-900">Datos Personales</h3>
           {!editando && (
             <button
               onClick={() => setEditando(true)}
-              className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
             >
               Editar
             </button>
@@ -312,16 +312,16 @@ export default function UserProfile({ usuario }: UserProfileProps) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
               <button
                 onClick={() => { setEditando(false); setErroresEdit({}); }}
-                className="rounded-full bg-slate-200 px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+                className="w-full rounded-full bg-slate-200 px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleGuardarDatos}
-                className="rounded-full bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                className="w-full rounded-full bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
               >
                 Guardar Cambios
               </button>
@@ -354,13 +354,13 @@ export default function UserProfile({ usuario }: UserProfileProps) {
       </div>
 
       {/* Tarjeta de Crédito/Débito */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex items-center justify-between">
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-xl font-bold text-slate-900">Tarjeta de Crédito/Débito</h3>
           {!agregarTarjeta && (
             <button
               onClick={() => setAgregarTarjeta(true)}
-              className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
             >
               Agregar Tarjeta
             </button>
@@ -372,7 +372,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
             {tarjetasGuardadas.map((tarjetaGuardada) => (
               <div
                 key={tarjetaGuardada.tarjeta_id}
-                className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-semibold text-slate-800">
@@ -384,7 +384,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
                 </div>
                 <button
                   onClick={() => handleEliminarTarjeta(tarjetaGuardada.tarjeta_id)}
-                  className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                  className="w-full rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 sm:w-auto"
                 >
                   Eliminar
                 </button>
@@ -395,8 +395,8 @@ export default function UserProfile({ usuario }: UserProfileProps) {
 
         {/* Modal para agregar tarjeta */}
         {agregarTarjeta && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
               <h3 className="text-xl font-bold text-slate-900 mb-4">Agregar Tarjeta</h3>
               <p className="mb-6 text-slate-700">Completa los datos de tu tarjeta para agregarla a tu perfil.</p>
               <div className="space-y-4">
@@ -443,16 +443,16 @@ export default function UserProfile({ usuario }: UserProfileProps) {
                   {erroresTarjeta.cvv && <p className="mt-1 text-sm text-red-600">{erroresTarjeta.cvv}</p>}
                 </div>
               </div>
-              <div className="mt-4 flex justify-end gap-3">
+              <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   onClick={() => { setAgregarTarjeta(false); setErroresTarjeta({}); }}
-                  className="rounded-full bg-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-400"
+                  className="w-full rounded-full bg-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-400 sm:w-auto"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleGuardarTarjeta}
-                  className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:w-auto"
                 >
                   Guardar
                 </button>

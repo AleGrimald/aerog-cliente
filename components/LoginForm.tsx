@@ -48,7 +48,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('https://aerog-server.vercel.app/login', {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,17 +79,17 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Inicia Sesión</h2>
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" autoComplete="off">
+      <h2 className="mb-5 text-xl font-bold text-gray-800 sm:mb-6 sm:text-2xl">Inicia Sesión</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-sm text-red-700 sm:text-base">
           {error}
         </div>
       )}
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-700">
           Email
         </label>
         <input
@@ -99,14 +99,14 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
           value={email}
           onChange={(e) => { setEmail(e.target.value.replace(/['";<>\\`=]/g, '')); setErrores((prev) => ({ ...prev, email: '' })); }}
           required
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errores.email ? 'border-red-500' : 'border-gray-300'}`}
+          className={`w-full rounded-lg border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 ${errores.email ? 'border-red-500' : 'border-gray-300'}`}
           placeholder="tu@email.com"
         />
         {errores.email && <p className="mt-1 text-sm text-red-600">{errores.email}</p>}
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700">
           Contraseña
         </label>
         <input
@@ -116,7 +116,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
           value={password}
           onChange={(e) => { setPassword(e.target.value.replace(/['";<>\\`=]/g, '')); setErrores((prev) => ({ ...prev, password: '' })); }}
           required
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errores.password ? 'border-red-500' : 'border-gray-300'}`}
+          className={`w-full rounded-lg border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 ${errores.password ? 'border-red-500' : 'border-gray-300'}`}
           placeholder="••••••••"
         />
         {errores.password && <p className="mt-1 text-sm text-red-600">{errores.password}</p>}
@@ -125,7 +125,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+        className="w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white transition duration-200 hover:bg-blue-700 disabled:bg-blue-400"
       >
         {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
       </button>

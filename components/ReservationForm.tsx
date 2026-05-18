@@ -408,26 +408,26 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     <>
     {/* Modal: ¿Quiere realizar el pago ahora? */}
     {showPagoModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
           <h3 className="text-xl font-bold text-slate-900 mb-4">¿Quiere realizar el pago ahora?</h3>
           <p className="mb-6 text-slate-700">Puedes pagar ahora con tarjeta o dejar la reserva pendiente de pago.</p>
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               onClick={() => setShowPagoModal(false)}
-              className="rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+              className="w-full rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
             >
               Cancelar
             </button>
             <button
               onClick={handlePagarMasTarde}
-              className="rounded-full bg-yellow-500 px-5 py-3 text-sm font-semibold text-white hover:bg-yellow-600"
+              className="w-full rounded-full bg-yellow-500 px-5 py-3 text-sm font-semibold text-white hover:bg-yellow-600 sm:w-auto"
             >
               Pagar más tarde
             </button>
             <button
               onClick={handlePagoAhora}
-              className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
             >
               Pagar ahora
             </button>
@@ -438,8 +438,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
 
     {/* Modal: Selección de tarjeta y forma de pago */}
     {showFormaPagoModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
           <h3 className="text-xl font-bold text-slate-900 mb-4">Selecciona tarjeta y forma de pago</h3>
           <div className="mb-4">
             <p className="mb-2 text-slate-700 font-semibold">Tarjetas guardadas:</p>
@@ -451,7 +451,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
                   <button
                     key={t.tarjeta_id}
                     onClick={() => handleSeleccionarTarjeta(t)}
-                    className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 ${tarjetaSeleccionada?.tarjeta_id === t.tarjeta_id ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-slate-50'} hover:border-blue-400`}
+                    className={`flex w-full flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between ${tarjetaSeleccionada?.tarjeta_id === t.tarjeta_id ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-slate-50'} hover:border-blue-400`}
                   >
                     <span>{t.marca} - {t.titular} ****{t.ultimos4}</span>
                     {tarjetaSeleccionada?.tarjeta_id === t.tarjeta_id && <span className="ml-2 text-blue-600 font-bold">Seleccionada</span>}
@@ -587,8 +587,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
 
     <div className="space-y-6">
       {/* Datos del Vuelo - NO EDITABLE */}
-      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-        <h2 className="text-2xl font-bold text-slate-900">Datos del Vuelo</h2>
+      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm sm:p-6">
+        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Datos del Vuelo</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <p className="text-sm font-medium text-slate-600">Código de Vuelo</p>
@@ -627,8 +627,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       </div>
 
       {/* Datos del Pasajero Principal */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-2xl font-bold text-slate-900">Pasajero Principal</h2>
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Pasajero Principal</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-slate-700">Nombre</label>
@@ -682,8 +682,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       {/* Datos de Pasajeros Adicionales */}
       {maxPasajerosAdicionales > 0 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-slate-900">Pasajeros Adicionales</h2>
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Pasajeros Adicionales</h2>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <p className="text-sm text-slate-600">
               Registrados: {pasajerosAdicionales.length} / {maxPasajerosAdicionales}
             </p>
@@ -692,7 +692,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
               <button
                 type="button"
                 onClick={abrirModalPasajero}
-                className="mt-4 rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                className="mt-4 w-full rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
               >
                 Agregar pasajero
               </button>
@@ -764,7 +764,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
           <button
             onClick={handleConfirmar}
             disabled={confirmandoReserva}
-            className="flex-1 rounded-3xl bg-blue-600 px-6 py-4 text-base font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-3xl bg-blue-600 px-6 py-4 text-base font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {confirmandoReserva ? 'Confirmando...' : 'Confirmar Reserva'}
           </button>
@@ -785,13 +785,13 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
 
       {mostrarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-xl font-bold text-slate-900">Registrar pasajero adicional</h3>
               <button
                 type="button"
                 onClick={cerrarModalPasajero}
-                className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                className="w-full rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 sm:w-auto"
               >
                 Cerrar
               </button>
@@ -875,18 +875,18 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
                 </div>
               )}
 
-              <div className="md:col-span-2 flex justify-end gap-3">
+              <div className="md:col-span-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={cerrarModalPasajero}
-                  className="rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+                  className="w-full rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardandoPasajero}
-                  className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {guardandoPasajero ? 'Guardando...' : 'Guardar pasajero'}
                 </button>

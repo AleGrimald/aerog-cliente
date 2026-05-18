@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import AuthForm from '@/components/AuthForm';
 import Dashboard from '@/components/Dashboard';
 import AdminDashboard from '../components/AdminDashboard';
@@ -21,6 +22,27 @@ const esUsuarioAdmin = (user: Usuario) => {
   const email = (user.email || '').trim().toLowerCase();
   return Boolean(user.es_admin) || email === 'admin@gmail.com';
 };
+
+const emailVerificationMsg: Record<string, { text: string; ok: boolean }> = {
+  ok: { text: '✅ Email verificado correctamente. Ya podés iniciar sesión.', ok: true },
+  ya_verificado: { text: 'ℹ️ Tu email ya fue verificado anteriormente.', ok: true },
+  token_expirado: { text: '⚠️ El link de verificación expiró. Registrate de nuevo.', ok: false },
+  token_invalido: { text: '❌ Link de verificación inválido.', ok: false },
+  usuario_no_encontrado: { text: '❌ No se encontró el usuario.', ok: false },
+  error: { text: '❌ Error al verificar el email. Intentá de nuevo.', ok: false },
+};
+
+function EmailVerificationBanner() {
+  const searchParams = useSearchParams();
+  const evStatus = searchParams.get('email_verification');
+  const evMsg = evStatus ? emailVerificationMsg[evStatus] : null;
+  if (!evMsg) return null;
+  return (
+    <div className={`mb-4 rounded-lg px-4 py-3 text-sm text-center font-medium ${evMsg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+      {evMsg.text}
+    </div>
+  );
+}
 
 export default function Home() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -55,23 +77,27 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-2xl p-8">
+    <main className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 px-3 py-6 sm:flex sm:items-center sm:justify-center sm:p-4">
+      <div className="w-full max-w-lg">
+        <div className="rounded-2xl bg-white p-5 shadow-2xl sm:p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800">Aero G</h1>
-            <p className="text-gray-600 mt-2">Gestión de Pasajes Aéreos</p>
+            <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">Aero G</h1>
+            <p className="mt-2 text-sm text-gray-600 sm:text-base">Gestión de Pasajes Aéreos</p>
           </div>
+
+          <Suspense fallback={null}>
+            <EmailVerificationBanner />
+          </Suspense>
 
           <AuthForm mode={mode} onLoginSuccess={handleLoginSuccess} />
 
           <div className="mt-6 text-center">
-            <p className="text-gray-600">
+            <p className="text-sm text-gray-600 sm:text-base">
               {mode === 'login' ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}
             </p>
             <button
               onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-              className="mt-2 text-blue-600 font-semibold hover:text-blue-800 transition"
+              className="mt-2 text-sm font-semibold text-blue-600 transition hover:text-blue-800 sm:text-base"
             >
               {mode === 'login' ? 'Regístrate aquí' : 'Inicia sesión aquí'}
             </button>

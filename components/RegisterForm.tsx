@@ -118,22 +118,22 @@ export default function RegisterForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Crear Cuenta</h2>
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+      <h2 className="mb-5 text-xl font-bold text-gray-800 sm:mb-6 sm:text-2xl">Crear Cuenta</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-sm text-red-700 sm:text-base">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+        <div className="rounded-lg border border-green-400 bg-green-100 px-4 py-3 text-sm text-green-700 sm:text-base">
           {success}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-2">
             Nombre
@@ -145,7 +145,7 @@ export default function RegisterForm() {
             value={formData.nombre}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Juan"
           />
         </div>
@@ -160,7 +160,7 @@ export default function RegisterForm() {
             value={formData.apellido}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Pérez"
           />
         </div>
@@ -177,7 +177,7 @@ export default function RegisterForm() {
           value={formData.email}
           onChange={handleChange}
           required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="tu@email.com"
         />
       </div>
@@ -193,7 +193,7 @@ export default function RegisterForm() {
           value={formData.telefono}
           onChange={handleChange}
           required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="123456789"
         />
       </div>
@@ -209,7 +209,7 @@ export default function RegisterForm() {
           value={formData.direccion}
           onChange={handleChange}
           required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Av. Siempre Viva 123"
         />
       </div>
@@ -225,7 +225,7 @@ export default function RegisterForm() {
           value={formData.fecha_nacimiento}
           onChange={handleChange}
           required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
@@ -240,7 +240,7 @@ export default function RegisterForm() {
           value={formData.password}
           onChange={handleChange}
           required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="••••••••"
         />
       </div>
@@ -256,7 +256,7 @@ export default function RegisterForm() {
           value={formData.confirmPassword}
           onChange={handleChange}
           required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="••••••••"
         />
       </div>
@@ -264,7 +264,7 @@ export default function RegisterForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+        className="w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white transition duration-200 hover:bg-blue-700 disabled:bg-blue-400"
       >
         {loading ? 'Registrando...' : 'Crear Cuenta'}
       </button>

@@ -134,24 +134,24 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     return (
       <div className="min-h-screen bg-slate-100 text-slate-900">
         <header className="bg-white shadow-sm">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
               <h1 className="text-xl font-bold text-slate-900">Aero G</h1>
               <p className="text-sm text-slate-600">Confirmación de Reserva</p>
             </div>
             <button
               onClick={onLogout}
-              className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
             >
               Cerrar sesión
             </button>
           </div>
         </header>
 
-        <main className="mx-auto max-w-6xl px-6 py-10">
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
           <button
             onClick={handleVolver}
-            className="mb-6 rounded-full bg-slate-600 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-700"
+            className="mb-6 w-full rounded-full bg-slate-600 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-700 sm:w-auto"
           >
             ← Volver a resultados
           </button>
@@ -247,7 +247,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     {/* Modal buscando vuelos */}
     {searchingModal && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="flex flex-col items-center gap-5 rounded-3xl bg-white px-12 py-10 shadow-2xl">
+        <div className="mx-4 flex max-w-sm flex-col items-center gap-5 rounded-3xl bg-white px-6 py-8 text-center shadow-2xl sm:px-12 sm:py-10">
           <svg
             className="h-14 w-14 animate-spin text-blue-600"
             xmlns="http://www.w3.org/2000/svg"
@@ -268,7 +268,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     )}
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <header className="bg-white shadow-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <h1 className="text-xl font-bold text-slate-900">Aero G</h1>
             <p className="text-sm text-slate-600">Bienvenido, {usuario.nombre}</p>
@@ -290,22 +290,22 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
 
           <button
             onClick={onLogout}
-            className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
           >
             Cerrar sesión
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
         {/* Tabs */}
-        <div className="mb-8 flex gap-4 border-b border-slate-200">
+        <div className="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-1 sm:mb-8 sm:gap-4">
           <button
             onClick={() => {
               setActiveTab('search');
               setSearchSection('form');
             }}
-            className={`px-6 py-3 text-sm font-semibold transition ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-semibold transition sm:px-6 ${
               activeTab === 'search'
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'text-slate-600 hover:text-slate-900'
@@ -315,7 +315,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
           </button>
           <button
             onClick={() => setActiveTab('reservations')}
-            className={`px-6 py-3 text-sm font-semibold transition ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-semibold transition sm:px-6 ${
               activeTab === 'reservations'
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'text-slate-600 hover:text-slate-900'
@@ -329,10 +329,10 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
         {activeTab === 'search' && (
           <>
             {searchSection === 'form' && (
-              <section className="mb-10 rounded-3xl bg-white p-8 shadow-md">
+              <section className="mb-8 rounded-3xl bg-white p-4 shadow-md sm:mb-10 sm:p-8">
                 <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h2 className="text-3xl font-bold text-slate-900">Buscar pasajes</h2>
+                    <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Buscar pasajes</h2>
                     <p className="mt-2 text-slate-600">Encuentra tu próximo vuelo de ida o ida y vuelta.</p>
                   </div>
                   <div className="rounded-3xl bg-slate-100 px-5 py-3 text-sm text-slate-700">
@@ -484,15 +484,15 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
             )}
 
             {searchSection === 'results' && (
-              <section className="mb-10 rounded-3xl bg-white p-8 shadow-md">
+              <section className="mb-10 rounded-3xl bg-white p-4 shadow-md sm:p-8">
                 <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h2 className="text-3xl font-bold text-slate-900">Resultados de Vuelo Disponible</h2>
+                    <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Resultados de Vuelo Disponible</h2>
                     <p className="mt-2 text-slate-600">Estos son los vuelos encontrados para tu búsqueda.</p>
                   </div>
                   <button
                     onClick={() => setSearchSection('form')}
-                    className="rounded-full bg-slate-600 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
+                    className="w-full rounded-full bg-slate-600 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 sm:w-auto"
                   >
                     Nueva búsqueda
                   </button>
@@ -515,12 +515,12 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
                 )}
 
                 {resultados.length > 0 && (
-                  <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h3 className="text-2xl font-semibold text-slate-900">Vuelos de ida</h3>
+                  <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                    <h3 className="text-xl font-semibold text-slate-900 sm:text-2xl">Vuelos de ida</h3>
                     <div className="mt-4 space-y-4">
                       {resultados.map((vuelo) => (
                         <div key={vuelo.vuelo_id} className="rounded-3xl border border-slate-200 p-4">
-                          <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div className="flex-1">
                               <p className="text-sm font-semibold text-slate-900">{vuelo.codigo_vuelo}</p>
                               <p className="text-sm text-slate-600">{vuelo.origen_nombre}, {vuelo.provincia_origen} → {vuelo.destino_nombre}, {vuelo.provincia_destino}</p>
@@ -530,7 +530,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
                             </div>
                             <button
                               onClick={() => handleSeleccionarVuelo(vuelo)}
-                              className="whitespace-nowrap rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                              className="w-full whitespace-nowrap rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
                             >
                               Seleccionar
                             </button>
@@ -547,14 +547,14 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
 
         {/* Tab: Mis Reservas */}
         {activeTab === 'reservations' && (
-          <section className="rounded-3xl bg-white p-8 shadow-md">
+          <section className="rounded-3xl bg-white p-4 shadow-md sm:p-8">
             <MyReservations usuarioId={usuario.usuario_id} />
           </section>
         )}
 
         {/* Tab: Perfil de Usuario */}
         {activeTab === 'profile' && (
-          <section className="rounded-3xl bg-white p-8 shadow-md">
+          <section className="rounded-3xl bg-white p-4 shadow-md sm:p-8">
             <UserProfile usuario={usuario} />
           </section>
         )}
