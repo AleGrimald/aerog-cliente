@@ -74,11 +74,15 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const [pagoModal, setPagoModal] = useState<{ open: boolean; reserva: Reserva | null }>({ open: false, reserva: null });
   const [tarjetasGuardadas, setTarjetasGuardadas] = useState<TarjetaGuardada[]>([]);
   const [tarjetaSeleccionada, setTarjetaSeleccionada] = useState<TarjetaGuardada | null>(null);
-  const [tipoPago, setTipoPago] = useState<'debito' | 'credito' | null>(null);
+  const [tipoPago, setTipoPago] = useState<'debito' | 'credito' | 'mercadopago_qr' | null>(null);
   const [cuotas, setCuotas] = useState(1);
   const [showConfirmingModal, setShowConfirmingModal] = useState(false);
   const [showCheckmark, setShowCheckmark] = useState(false);
   const [mensajePago, setMensajePago] = useState('');
+  const [verificandoQr, setVerificandoQr] = useState(false);
+  const [qrCheckoutUrl, setQrCheckoutUrl] = useState('');
+  const [cvvPago, setCvvPago] = useState('');
+  const [cvvError, setCvvError] = useState('');
   // Cargar tarjetas guardadas al abrir modal de pago
   const cargarTarjetas = async () => {
     if (!pagoModal.reserva) return;
@@ -97,6 +101,9 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       setTipoPago(null);
       setCuotas(1);
       setMensajePago('');
+      setQrCheckoutUrl('');
+      setCvvPago('');
+      setCvvError('');
     }
   }, [pagoModal.open]);
   
@@ -116,6 +123,10 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       montoPorCuota,
     };
   };
+
+  const qrImageUrl = qrCheckoutUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrCheckoutUrl)}`
+    : '';
   
   // Handler para abrir modal de pago
   const handlePagarAhora = (reserva: Reserva) => {
@@ -127,6 +138,8 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
 
   const handleSeleccionarTarjeta = (tarjeta: TarjetaGuardada) => {
     setTarjetaSeleccionada(tarjeta);
+    setCvvPago('');
+    setCvvError('');
     // Auto-detectar tipo de pago desde tipo_tarjeta de la BD
     const tipo = tarjeta.tipo_tarjeta ? tarjeta.tipo_tarjeta.toLowerCase() : '';
     if (tipo === 'debito') {
@@ -138,9 +151,53 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
     }
   };
 
+  const handleSeleccionarMercadoPagoQr = () => {
+    setTarjetaSeleccionada(null);
+    setTipoPago('mercadopago_qr');
+    setCuotas(1);
+    setCvvPago('');
+    setCvvError('');
+  };
+
   // Handler para confirmar pago
   const handleConfirmarPago = async () => {
-    if (!pagoModal.reserva || !tarjetaSeleccionada || !tipoPago) return;
+    if (!pagoModal.reserva || !tipoPago) return;
+
+    if (tipoPago === 'mercadopago_qr') {
+      try {
+        setMensajePago('');
+        const response = await fetch(`${API_BASE_URL}/crear-pago-qr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reserva_id: pagoModal.reserva.reserva_id,
+            usuario_email: pagoModal.reserva.email,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          setMensajePago(data.error || 'No se pudo generar el pago QR.');
+          return;
+        }
+
+        if (data.checkout_url) {
+          setQrCheckoutUrl(data.checkout_url);
+        }
+        setMensajePago('QR generado. Escanealo con Mercado Pago y luego presiona Verificar pago QR.');
+      } catch {
+        setMensajePago('No se pudo conectar con el servidor.');
+      }
+      return;
+    }
+
+    if (!tarjetaSeleccionada) return;
+    if (!/^\d{3,4}$/.test(cvvPago)) {
+      setCvvError('Completa el CVV (3 o 4 dígitos).');
+      setMensajePago('Ingresa un CVV válido (3 o 4 dígitos).');
+      return;
+    }
+    setCvvError('');
+
     setShowConfirmingModal(true);
     setShowCheckmark(false);
     setMensajePago('');
@@ -154,6 +211,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
         reserva_id: pagoModal.reserva.reserva_id,
         tarjeta_id: tarjetaSeleccionada.tarjeta_id,
         tipo: tipoPago,
+        cvv: cvvPago,
         cuotas: tipoPago === 'credito' ? cuotas : 1,
       };
       // Endpoint a implementar en backend: /pagar-reserva
@@ -172,6 +230,41 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       setTimeout(() => setPagoModal({ open: false, reserva: null }), 1200);
     } catch {
       setMensajePago('No se pudo conectar con el servidor.');
+    }
+  };
+
+  const handleVerificarPagoQr = async () => {
+    if (!pagoModal.reserva) return;
+    try {
+      setVerificandoQr(true);
+      const response = await fetch(`${API_BASE_URL}/verificar-pago-qr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reserva_id: pagoModal.reserva.reserva_id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMensajePago(data.error || 'No se pudo verificar el pago QR.');
+        return;
+      }
+
+      if (data.estado === 'confirmado') {
+        setMensajePago('Pago QR confirmado. Reserva actualizada.');
+        await fetchReservas();
+        setTimeout(() => setPagoModal({ open: false, reserva: null }), 1200);
+        return;
+      }
+
+      if (data.estado === 'pendiente') {
+        setMensajePago('El pago sigue pendiente en Mercado Pago.');
+        return;
+      }
+
+      setMensajePago(data.mensaje || 'El pago aún no fue aprobado.');
+    } catch {
+      setMensajePago('No se pudo conectar con el servidor para verificar el pago.');
+    } finally {
+      setVerificandoQr(false);
     }
   };
 
@@ -394,9 +487,36 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                               </div>
                             )}
                           </div>
-                          {tarjetaSeleccionada && tipoPago && (
+
+                          <div className="mb-4">
+                            <p className="mb-2 text-slate-700 font-semibold">Otras formas de pago:</p>
+                            <button
+                              onClick={handleSeleccionarMercadoPagoQr}
+                              className={`w-full rounded-xl border px-4 py-3 text-left ${tipoPago === 'mercadopago_qr' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-slate-50'} hover:border-blue-400`}
+                            >
+                              Mercado Pago QR
+                            </button>
+                          </div>
+
+                          {tipoPago && tipoPago !== 'mercadopago_qr' && tarjetaSeleccionada && (
                             <div className="mb-4">
                               <p className="mb-3 text-slate-700 font-semibold">Tipo de Pago: <span className="text-blue-600">{tipoPago === 'debito' ? 'Débito' : 'Crédito'}</span></p>
+                              <div className="mb-3">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">CVV:</label>
+                                <input
+                                  type="password"
+                                  inputMode="numeric"
+                                  maxLength={4}
+                                  value={cvvPago}
+                                  onChange={(e) => {
+                                    setCvvPago(e.target.value.replace(/[^0-9]/g, ''));
+                                    setCvvError('');
+                                  }}
+                                  placeholder="***"
+                                  className={`w-full rounded-xl border px-3 py-2 ${cvvError ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
+                                />
+                                {cvvError && <p className="mt-1 text-xs text-red-600">{cvvError}</p>}
+                              </div>
                               {tipoPago === 'credito' && (
                                 <div className="mb-3">
                                   <label className="block text-sm font-medium text-slate-700 mb-1">Cuotas:</label>
@@ -452,6 +572,37 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                               </div>
                             </div>
                           )}
+
+                          {tipoPago === 'mercadopago_qr' && (
+                            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <p className="text-sm font-semibold text-slate-900 mb-2">Resumen de Pago</p>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-slate-600">Método:</span>
+                                  <span className="font-semibold text-slate-900">Mercado Pago QR</span>
+                                </div>
+                                <div className="border-t border-slate-300 pt-2 flex justify-between">
+                                  <span className="font-semibold text-slate-900">Total a Pagar:</span>
+                                  <span className="font-bold text-blue-600">${calcularResumenPago().subtotal}</span>
+                                </div>
+                              </div>
+
+                              {qrCheckoutUrl && (
+                                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                                  <div className="flex justify-center">
+                                    <img src={qrImageUrl} alt="QR Mercado Pago" className="h-64 w-64 max-w-full" />
+                                  </div>
+                                  <button
+                                    onClick={() => window.open(qrCheckoutUrl, '_blank', 'noopener,noreferrer')}
+                                    className="mt-3 w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                  >
+                                    Abrir checkout de Mercado Pago
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {mensajePago && (
                             <div className="mb-4 text-center text-blue-700 font-semibold">{mensajePago}</div>
                           )}
@@ -464,11 +615,20 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                             </button>
                             <button
                               onClick={handleConfirmarPago}
-                              disabled={!tarjetaSeleccionada || !tipoPago}
+                              disabled={!tipoPago || (tipoPago !== 'mercadopago_qr' && !tarjetaSeleccionada)}
                               className="w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
                             >
-                              Confirmar y pagar
+                              {tipoPago === 'mercadopago_qr' ? 'Generar QR' : 'Confirmar y pagar'}
                             </button>
+                            {tipoPago === 'mercadopago_qr' && (
+                              <button
+                                onClick={handleVerificarPagoQr}
+                                disabled={verificandoQr}
+                                className="w-full rounded-full bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 sm:w-auto"
+                              >
+                                {verificandoQr ? 'Verificando...' : 'Verificar pago QR'}
+                              </button>
+                            )}
                           </div>
                         </div>
                         {/* Modal confirmando pago */}

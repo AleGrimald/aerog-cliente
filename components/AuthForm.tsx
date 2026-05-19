@@ -17,12 +17,13 @@ interface Usuario {
 interface AuthFormProps {
   mode: 'login' | 'register';
   onLoginSuccess: (usuario: Usuario) => void;
+  onRegisterSuccess: () => void;
 }
 
-export default function AuthForm({ mode, onLoginSuccess }: AuthFormProps) {
+export default function AuthForm({ mode, onLoginSuccess, onRegisterSuccess }: AuthFormProps) {
   return (
     <div>
-      {mode === 'login' ? <LoginForm onLoginSuccess={onLoginSuccess} /> : <RegisterForm />}
+      {mode === 'login' ? <LoginForm onLoginSuccess={onLoginSuccess} /> : <RegisterForm onRegisterSuccess={onRegisterSuccess} />}
     </div>
   );
 }

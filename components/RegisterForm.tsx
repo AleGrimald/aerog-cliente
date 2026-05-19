@@ -1,9 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/constants/api';
 
-export default function RegisterForm() {
+interface RegisterFormProps {
+  onRegisterSuccess: () => void;
+}
+
+export default function RegisterForm({ onRegisterSuccess }: RegisterFormProps) {
   const [formData, setFormData] = useState({
     nombre: '',
     apellido: '',
@@ -17,6 +21,25 @@ export default function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const modalTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (modalTimerRef.current) {
+        window.clearTimeout(modalTimerRef.current);
+      }
+    };
+  }, []);
+
+  const closeSuccessModal = () => {
+    if (modalTimerRef.current) {
+      window.clearTimeout(modalTimerRef.current);
+      modalTimerRef.current = null;
+    }
+    setShowSuccessModal(false);
+    onRegisterSuccess();
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -95,7 +118,7 @@ export default function RegisterForm() {
       const result = await response.json();
 
       if (response.ok) {
-        setSuccess('Registro exitoso. Ahora inicia sesión.');
+        setSuccess('Registro exitoso.');
         setFormData({
           nombre: '',
           apellido: '',
@@ -106,6 +129,10 @@ export default function RegisterForm() {
           password: '',
           confirmPassword: '',
         });
+        setShowSuccessModal(true);
+        modalTimerRef.current = window.setTimeout(() => {
+          closeSuccessModal();
+        }, 7000);
       } else {
         setError(result.error || 'Error al registrarse');
       }
@@ -118,8 +145,9 @@ export default function RegisterForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-      <h2 className="mb-5 text-xl font-bold text-gray-800 sm:mb-6 sm:text-2xl">Crear Cuenta</h2>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+        <h2 className="mb-5 text-xl font-bold text-gray-800 sm:mb-6 sm:text-2xl">Crear Cuenta</h2>
 
       {error && (
         <div className="rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-sm text-red-700 sm:text-base">
@@ -261,14 +289,36 @@ export default function RegisterForm() {
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white transition duration-200 hover:bg-blue-700 disabled:bg-blue-400"
-      >
-        {loading ? 'Registrando...' : 'Crear Cuenta'}
-      </button>
-    </form>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white transition duration-200 hover:bg-blue-700 disabled:bg-blue-400"
+        >
+          {loading ? 'Registrando...' : 'Crear Cuenta'}
+        </button>
+      </form>
+
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-800">Cuenta creada con éxito</h3>
+            <p className="mt-3 text-sm text-gray-600 sm:text-base">
+              Te enviamos un email para confirmar tu cuenta. Revisa tu bandeja de entrada.
+            </p>
+            <p className="mt-2 text-xs text-gray-500 sm:text-sm">Esta ventana se cerrará automáticamente en 7 segundos.</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={closeSuccessModal}
+                className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white transition hover:bg-blue-700"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

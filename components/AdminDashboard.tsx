@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/constants/api';
 
 interface UsuarioAdmin {
@@ -156,6 +156,8 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
   const [editandoVueloId, setEditandoVueloId] = useState<number | null>(null);
   const [vueloForm, setVueloForm] = useState<VueloForm>(initialVueloForm);
   const [busquedaVuelos, setBusquedaVuelos] = useState('');
+  const vueloFormContainerRef = useRef<HTMLDivElement | null>(null);
+  const codigoVueloInputRef = useRef<HTMLInputElement | null>(null);
 
   const [guardandoUsuario, setGuardandoUsuario] = useState(false);
   const [eliminandoUsuarioId, setEliminandoUsuarioId] = useState<number | null>(null);
@@ -246,6 +248,18 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
   useEffect(() => {
     cargarTodo();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'vuelos' || editandoVueloId === null) return;
+
+    const timer = window.setTimeout(() => {
+      vueloFormContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      codigoVueloInputRef.current?.focus();
+      codigoVueloInputRef.current?.select();
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTab, editandoVueloId]);
 
   const handleEditVuelo = (vuelo: Vuelo) => {
     limpiarMensajes();
@@ -491,12 +505,13 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
         {!loading && activeTab === 'vuelos' && (
           <section className="space-y-6">
-            <div className="rounded-3xl bg-white p-6 shadow">
+            <div ref={vueloFormContainerRef} className="rounded-3xl bg-white p-6 shadow">
               <h2 className="text-2xl font-bold text-slate-900">{editandoVueloId ? 'Editar vuelo' : 'Crear vuelo'}</h2>
               <form onSubmit={handleSubmitVuelo} className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-slate-700">Código de vuelo</label>
                   <input
+                    ref={codigoVueloInputRef}
                     type="text"
                     value={vueloForm.codigo_vuelo}
                     onChange={(e) => setVueloForm((prev) => ({ ...prev, codigo_vuelo: e.target.value }))}

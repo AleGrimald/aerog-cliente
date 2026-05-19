@@ -30,8 +30,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
   const [tarjeta, setTarjeta] = useState({
     numero: '',
     titular: '',
-    vencimiento: '',
-    cvv: '',
+    vencimiento: '', // MM/AA
   });
 
   const [agregarTarjeta, setAgregarTarjeta] = useState(false);
@@ -49,7 +48,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
           setTarjetasGuardadas(Array.isArray(data.tarjetas) ? data.tarjetas : []);
         }
       } catch {
-        // Ignoramos error silenciosamente para no romper el perfil.
+        // noop
       }
     };
 
@@ -75,9 +74,12 @@ export default function UserProfile({ usuario }: UserProfileProps) {
     } else if (campo === 'titular') {
       filtered = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
     } else if (campo === 'vencimiento') {
-      filtered = valor.replace(/[^0-9/]/g, '');
-    } else if (campo === 'cvv') {
-      filtered = valor.replace(/[^0-9]/g, '');
+      const soloNumeros = valor.replace(/[^0-9]/g, '').slice(0, 4);
+      if (soloNumeros.length <= 2) {
+        filtered = soloNumeros;
+      } else {
+        filtered = `${soloNumeros.slice(0, 2)}/${soloNumeros.slice(2)}`;
+      }
     }
     setTarjeta((prev) => ({ ...prev, [campo]: filtered }));
   };
@@ -115,7 +117,9 @@ export default function UserProfile({ usuario }: UserProfileProps) {
       setErroresEdit(nuevosErrores);
       return;
     }
+
     setErroresEdit({});
+
     try {
       const response = await fetch(`${API_BASE_URL}/actualizar-perfil`, {
         method: 'PUT',
@@ -154,25 +158,32 @@ export default function UserProfile({ usuario }: UserProfileProps) {
     if (!tarjeta.titular.trim() || tarjeta.titular.trim().length < 2 || !soloLetras.test(tarjeta.titular.trim()) || sqlPattern.test(tarjeta.titular))
       nuevosErroresTarjeta.titular = 'El titular solo puede contener letras (mín. 2 caracteres).';
 
-    const vencimientoRegex = /^(0[1-9]|1[0-2])\/\d{2}$/;
-    if (!vencimientoRegex.test(tarjeta.vencimiento)) {
-      nuevosErroresTarjeta.vencimiento = 'Formato inválido. Usa MM/AA (ej: 12/27).';
+    if (!tarjeta.vencimiento) {
+      nuevosErroresTarjeta.vencimiento = 'Ingresa mes y año de vencimiento (MM/AA).';
     } else {
-      const [mes, anio] = tarjeta.vencimiento.split('/').map(Number);
-      const ahora = new Date();
-      const anioCompleto = 2000 + anio;
-      if (anioCompleto < ahora.getFullYear() || (anioCompleto === ahora.getFullYear() && mes < ahora.getMonth() + 1))
-        nuevosErroresTarjeta.vencimiento = 'La tarjeta está vencida.';
-    }
+      const match = tarjeta.vencimiento.match(/^(0[1-9]|1[0-2])\/(\d{2})$/);
+      const hoy = new Date();
+      const anioActual = hoy.getFullYear() % 100;
+      const mesActual = hoy.getMonth() + 1;
 
-    if (!/^\d{3,4}$/.test(tarjeta.cvv) || sqlPattern.test(tarjeta.cvv))
-      nuevosErroresTarjeta.cvv = 'El CVV debe tener 3 o 4 dígitos.';
+      if (!match) {
+        nuevosErroresTarjeta.vencimiento = 'Formato inválido. Usa MM/AA (ej: 06/27).';
+      } else {
+        const mes = Number(match[1]);
+        const anio = Number(match[2]);
+        if (anio < anioActual || (anio === anioActual && mes < mesActual)) {
+          nuevosErroresTarjeta.vencimiento = 'La tarjeta está vencida.';
+        }
+      }
+    }
 
     if (Object.keys(nuevosErroresTarjeta).length > 0) {
       setErroresTarjeta(nuevosErroresTarjeta);
       return;
     }
+
     setErroresTarjeta({});
+
     try {
       const response = await fetch(`${API_BASE_URL}/agregar-tarjeta`, {
         method: 'POST',
@@ -184,7 +195,6 @@ export default function UserProfile({ usuario }: UserProfileProps) {
           numero: tarjeta.numero,
           titular: tarjeta.titular,
           vencimiento: tarjeta.vencimiento,
-          cvv: tarjeta.cvv,
         }),
       });
 
@@ -196,7 +206,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
 
       setMensaje({ tipo: 'exito', texto: 'Tarjeta guardada exitosamente.' });
       setAgregarTarjeta(false);
-      setTarjeta({ numero: '', titular: '', vencimiento: '', cvv: '' });
+      setTarjeta({ numero: '', titular: '', vencimiento: '' });
       if (data.tarjeta) {
         setTarjetasGuardadas((prev) => [data.tarjeta, ...prev]);
       }
@@ -206,7 +216,6 @@ export default function UserProfile({ usuario }: UserProfileProps) {
   };
 
   const handleEliminarTarjeta = async (tarjetaId: number) => {
-
     setMensaje({ tipo: '', texto: '' });
     try {
       const response = await fetch(`${API_BASE_URL}/eliminar-tarjeta/${tarjetaId}`, {
@@ -230,7 +239,6 @@ export default function UserProfile({ usuario }: UserProfileProps) {
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Perfil de Usuario</h2>
 
-      {/* Mensaje de estado */}
       {mensaje.texto && (
         <div
           className={`rounded-3xl p-4 ${
@@ -243,7 +251,6 @@ export default function UserProfile({ usuario }: UserProfileProps) {
         </div>
       )}
 
-      {/* Datos Personales */}
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-xl font-bold text-slate-900">Datos Personales</h3>
@@ -262,138 +269,69 @@ export default function UserProfile({ usuario }: UserProfileProps) {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-slate-700">Nombre</label>
-                <input
-                  type="text"
-                  value={datosEdit.nombre}
-                  onChange={(e) => { handleCambioEdit('nombre', e.target.value); setErroresEdit((p) => ({ ...p, nombre: '' })); }}
-                  className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.nombre ? 'border-red-500' : 'border-slate-300'}`}
-                />
+                <input type="text" value={datosEdit.nombre} onChange={(e) => { handleCambioEdit('nombre', e.target.value); setErroresEdit((p) => ({ ...p, nombre: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.nombre ? 'border-red-500' : 'border-slate-300'}`} />
                 {erroresEdit.nombre && <p className="mt-1 text-sm text-red-600">{erroresEdit.nombre}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700">Apellido</label>
-                <input
-                  type="text"
-                  value={datosEdit.apellido}
-                  onChange={(e) => { handleCambioEdit('apellido', e.target.value); setErroresEdit((p) => ({ ...p, apellido: '' })); }}
-                  className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.apellido ? 'border-red-500' : 'border-slate-300'}`}
-                />
+                <input type="text" value={datosEdit.apellido} onChange={(e) => { handleCambioEdit('apellido', e.target.value); setErroresEdit((p) => ({ ...p, apellido: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.apellido ? 'border-red-500' : 'border-slate-300'}`} />
                 {erroresEdit.apellido && <p className="mt-1 text-sm text-red-600">{erroresEdit.apellido}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700">Email</label>
-                <input
-                  type="email"
-                  value={datosEdit.email}
-                  onChange={(e) => { handleCambioEdit('email', e.target.value); setErroresEdit((p) => ({ ...p, email: '' })); }}
-                  className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.email ? 'border-red-500' : 'border-slate-300'}`}
-                />
+                <input type="email" value={datosEdit.email} onChange={(e) => { handleCambioEdit('email', e.target.value); setErroresEdit((p) => ({ ...p, email: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.email ? 'border-red-500' : 'border-slate-300'}`} />
                 {erroresEdit.email && <p className="mt-1 text-sm text-red-600">{erroresEdit.email}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700">Teléfono</label>
-                <input
-                  type="text"
-                  value={datosEdit.telefono}
-                  onChange={(e) => { handleCambioEdit('telefono', e.target.value); setErroresEdit((p) => ({ ...p, telefono: '' })); }}
-                  className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.telefono ? 'border-red-500' : 'border-slate-300'}`}
-                />
+                <input type="text" value={datosEdit.telefono} onChange={(e) => { handleCambioEdit('telefono', e.target.value); setErroresEdit((p) => ({ ...p, telefono: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.telefono ? 'border-red-500' : 'border-slate-300'}`} />
                 {erroresEdit.telefono && <p className="mt-1 text-sm text-red-600">{erroresEdit.telefono}</p>}
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700">Dirección</label>
-                <input
-                  type="text"
-                  value={datosEdit.direccion}
-                  onChange={(e) => { handleCambioEdit('direccion', e.target.value); setErroresEdit((p) => ({ ...p, direccion: '' })); }}
-                  className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.direccion ? 'border-red-500' : 'border-slate-300'}`}
-                />
+                <input type="text" value={datosEdit.direccion} onChange={(e) => { handleCambioEdit('direccion', e.target.value); setErroresEdit((p) => ({ ...p, direccion: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.direccion ? 'border-red-500' : 'border-slate-300'}`} />
                 {erroresEdit.direccion && <p className="mt-1 text-sm text-red-600">{erroresEdit.direccion}</p>}
               </div>
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
-              <button
-                onClick={() => { setEditando(false); setErroresEdit({}); }}
-                className="w-full rounded-full bg-slate-200 px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleGuardarDatos}
-                className="w-full rounded-full bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
-              >
-                Guardar Cambios
-              </button>
+              <button onClick={() => { setEditando(false); setErroresEdit({}); }} className="w-full rounded-full bg-slate-200 px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto">Cancelar</button>
+              <button onClick={handleGuardarDatos} className="w-full rounded-full bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto">Guardar Cambios</button>
             </div>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Nombre</p>
-              <p className="text-lg font-semibold text-slate-900">{datosEdit.nombre}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-600">Apellido</p>
-              <p className="text-lg font-semibold text-slate-900">{datosEdit.apellido}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-600">Email</p>
-              <p className="text-lg font-semibold text-slate-900">{datosEdit.email}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-600">Teléfono</p>
-              <p className="text-lg font-semibold text-slate-900">{datosEdit.telefono}</p>
-            </div>
-            <div className="md:col-span-2">
-              <p className="text-sm font-medium text-slate-600">Dirección</p>
-              <p className="text-lg font-semibold text-slate-900">{datosEdit.direccion}</p>
-            </div>
+            <div><p className="text-sm font-medium text-slate-600">Nombre</p><p className="text-lg font-semibold text-slate-900">{datosEdit.nombre}</p></div>
+            <div><p className="text-sm font-medium text-slate-600">Apellido</p><p className="text-lg font-semibold text-slate-900">{datosEdit.apellido}</p></div>
+            <div><p className="text-sm font-medium text-slate-600">Email</p><p className="text-lg font-semibold text-slate-900">{datosEdit.email}</p></div>
+            <div><p className="text-sm font-medium text-slate-600">Teléfono</p><p className="text-lg font-semibold text-slate-900">{datosEdit.telefono}</p></div>
+            <div className="md:col-span-2"><p className="text-sm font-medium text-slate-600">Dirección</p><p className="text-lg font-semibold text-slate-900">{datosEdit.direccion}</p></div>
           </div>
         )}
       </div>
 
-      {/* Tarjeta de Crédito/Débito */}
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-xl font-bold text-slate-900">Tarjeta de Crédito/Débito</h3>
           {!agregarTarjeta && (
-            <button
-              onClick={() => setAgregarTarjeta(true)}
-              className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
-            >
-              Agregar Tarjeta
-            </button>
+            <button onClick={() => setAgregarTarjeta(true)} className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto">Agregar Tarjeta</button>
           )}
         </div>
 
         {tarjetasGuardadas.length > 0 && (
           <div className="mb-4 space-y-3">
             {tarjetasGuardadas.map((tarjetaGuardada) => (
-              <div
-                key={tarjetaGuardada.tarjeta_id}
-                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
+              <div key={tarjetaGuardada.tarjeta_id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-semibold text-slate-800">
-                    {tarjetaGuardada.tipo_tarjeta || 'No identificado'} - {tarjetaGuardada.fabricante || tarjetaGuardada.marca} - ****{tarjetaGuardada.ultimos4}
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    {tarjetaGuardada.entidad_bancaria || 'Entidad no identificada'}
-                  </p>
+                  <p className="font-semibold text-slate-800">{tarjetaGuardada.tipo_tarjeta || 'No identificado'} - {tarjetaGuardada.fabricante || tarjetaGuardada.marca} - ****{tarjetaGuardada.ultimos4}</p>
+                  <p className="text-sm text-slate-600">{tarjetaGuardada.entidad_bancaria || 'Entidad no identificada'}</p>
                 </div>
-                <button
-                  onClick={() => handleEliminarTarjeta(tarjetaGuardada.tarjeta_id)}
-                  className="w-full rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 sm:w-auto"
-                >
-                  Eliminar
-                </button>
+                <button onClick={() => handleEliminarTarjeta(tarjetaGuardada.tarjeta_id)} className="w-full rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 sm:w-auto">Eliminar</button>
               </div>
             ))}
           </div>
         )}
 
-        {/* Modal para agregar tarjeta */}
         {agregarTarjeta && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
@@ -401,69 +339,26 @@ export default function UserProfile({ usuario }: UserProfileProps) {
               <p className="mb-6 text-slate-700">Completa los datos de tu tarjeta para agregarla a tu perfil.</p>
               <div className="space-y-4">
                 <div>
-                  <input
-                    type="text"
-                    placeholder="Número de tarjeta"
-                    value={tarjeta.numero}
-                    onChange={(e) => { handleCambioTarjeta('numero', e.target.value); setErroresTarjeta((p) => ({ ...p, numero: '' })); }}
-                    className={`w-full rounded-lg border p-2 ${erroresTarjeta.numero ? 'border-red-500' : 'border-gray-300'}`}
-                  />
+                  <input type="text" placeholder="Número de tarjeta" value={tarjeta.numero} onChange={(e) => { handleCambioTarjeta('numero', e.target.value); setErroresTarjeta((p) => ({ ...p, numero: '' })); }} className={`w-full rounded-lg border p-2 ${erroresTarjeta.numero ? 'border-red-500' : 'border-gray-300'}`} />
                   {erroresTarjeta.numero && <p className="mt-1 text-sm text-red-600">{erroresTarjeta.numero}</p>}
                 </div>
                 <div>
-                  <input
-                    type="text"
-                    placeholder="Titular"
-                    value={tarjeta.titular}
-                    onChange={(e) => { handleCambioTarjeta('titular', e.target.value); setErroresTarjeta((p) => ({ ...p, titular: '' })); }}
-                    className={`w-full rounded-lg border p-2 ${erroresTarjeta.titular ? 'border-red-500' : 'border-gray-300'}`}
-                  />
+                  <input type="text" placeholder="Titular" value={tarjeta.titular} onChange={(e) => { handleCambioTarjeta('titular', e.target.value); setErroresTarjeta((p) => ({ ...p, titular: '' })); }} className={`w-full rounded-lg border p-2 ${erroresTarjeta.titular ? 'border-red-500' : 'border-gray-300'}`} />
                   {erroresTarjeta.titular && <p className="mt-1 text-sm text-red-600">{erroresTarjeta.titular}</p>}
                 </div>
                 <div>
-                  <input
-                    type="text"
-                    placeholder="Vencimiento (MM/AA)"
-                    value={tarjeta.vencimiento}
-                    maxLength={5}
-                    onChange={(e) => { handleCambioTarjeta('vencimiento', e.target.value); setErroresTarjeta((p) => ({ ...p, vencimiento: '' })); }}
-                    className={`w-full rounded-lg border p-2 ${erroresTarjeta.vencimiento ? 'border-red-500' : 'border-gray-300'}`}
-                  />
+                  <input type="text" placeholder="Vencimiento (MM/AA)" value={tarjeta.vencimiento} maxLength={5} onChange={(e) => { handleCambioTarjeta('vencimiento', e.target.value); setErroresTarjeta((p) => ({ ...p, vencimiento: '' })); }} className={`w-full rounded-lg border p-2 ${erroresTarjeta.vencimiento ? 'border-red-500' : 'border-gray-300'}`} />
                   {erroresTarjeta.vencimiento && <p className="mt-1 text-sm text-red-600">{erroresTarjeta.vencimiento}</p>}
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="CVV"
-                    value={tarjeta.cvv}
-                    maxLength={4}
-                    onChange={(e) => { handleCambioTarjeta('cvv', e.target.value); setErroresTarjeta((p) => ({ ...p, cvv: '' })); }}
-                    className={`w-full rounded-lg border p-2 ${erroresTarjeta.cvv ? 'border-red-500' : 'border-gray-300'}`}
-                  />
-                  {erroresTarjeta.cvv && <p className="mt-1 text-sm text-red-600">{erroresTarjeta.cvv}</p>}
                 </div>
               </div>
               <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                <button
-                  onClick={() => { setAgregarTarjeta(false); setErroresTarjeta({}); }}
-                  className="w-full rounded-full bg-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-400 sm:w-auto"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleGuardarTarjeta}
-                  className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:w-auto"
-                >
-                  Guardar
-                </button>
+                <button onClick={() => { setAgregarTarjeta(false); setErroresTarjeta({}); }} className="w-full rounded-full bg-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-400 sm:w-auto">Cancelar</button>
+                <button onClick={handleGuardarTarjeta} className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:w-auto">Guardar</button>
               </div>
             </div>
           </div>
         )}
-
-        {/* ...existing code... */}
       </div>
     </div>
   );
 }
-

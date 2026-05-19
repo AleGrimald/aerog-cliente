@@ -63,6 +63,10 @@ export default function Home() {
     setUsuario(user);
   };
 
+  const handleRegisterSuccess = () => {
+    setMode('login');
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('usuario');
     setUsuario(null);
@@ -89,7 +93,7 @@ export default function Home() {
             <EmailVerificationBanner />
           </Suspense>
 
-          <AuthForm mode={mode} onLoginSuccess={handleLoginSuccess} />
+          <AuthForm mode={mode} onLoginSuccess={handleLoginSuccess} onRegisterSuccess={handleRegisterSuccess} />
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600 sm:text-base">
