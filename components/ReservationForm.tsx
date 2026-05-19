@@ -448,9 +448,20 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
             usuario_email: datosTitular.email || usuario.email,
           }),
         });
-        const dataPagoQr = await responsePagoQr.json();
+        const rawPagoQr = await responsePagoQr.text();
+        let dataPagoQr: any = {};
+        if (rawPagoQr) {
+          try {
+            dataPagoQr = JSON.parse(rawPagoQr);
+          } catch {
+            dataPagoQr = {};
+          }
+        }
         if (!responsePagoQr.ok) {
-          setMensajeReserva({ tipo: 'error', texto: dataPagoQr.error || 'No se pudo generar el pago QR.' });
+          setMensajeReserva({
+            tipo: 'error',
+            texto: dataPagoQr.error || `No se pudo generar el pago QR (HTTP ${responsePagoQr.status}).`,
+          });
           return;
         }
 
@@ -497,7 +508,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       if (onReservaConfirmada) {
         setTimeout(() => { onReservaConfirmada(); }, 2000);
       }
-    } catch {
+    } catch (err) {
+      console.error('Error al confirmar pago/reserva:', err);
       setMensajeReserva({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });
     } finally {
       setConfirmandoReserva(false);
