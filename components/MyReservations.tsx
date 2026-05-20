@@ -284,7 +284,25 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
         return;
       }
 
-      setReservas(data);
+      const reservasCrudas: Reserva[] = Array.isArray(data) ? data : [];
+      const reservasUnicas = new Map<number, Reserva>();
+
+      for (const reserva of reservasCrudas) {
+        const existente = reservasUnicas.get(reserva.reserva_id);
+        if (!existente) {
+          reservasUnicas.set(reserva.reserva_id, reserva);
+          continue;
+        }
+
+        const fechaNueva = Date.parse(reserva.pago_fecha || reserva.fecha_reserva || '');
+        const fechaExistente = Date.parse(existente.pago_fecha || existente.fecha_reserva || '');
+
+        if (!Number.isNaN(fechaNueva) && (Number.isNaN(fechaExistente) || fechaNueva >= fechaExistente)) {
+          reservasUnicas.set(reserva.reserva_id, reserva);
+        }
+      }
+
+      setReservas(Array.from(reservasUnicas.values()));
     } catch {
       setError('No se pudo conectar con el servidor.');
     } finally {
