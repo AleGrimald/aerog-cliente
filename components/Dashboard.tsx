@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ChangeEvent, Dispatch, SetStateAction } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { API_BASE_URL } from '@/constants/api';
 import ReservationForm from './ReservationForm';
 import MyReservations from './MyReservations';
@@ -25,24 +25,51 @@ interface AirportSuggestion {
   label: string;
 }
 
+const normalizeAirportText = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
 export default function Dashboard({ usuario, onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<'search' | 'reservations' | 'profile'>('search');
   const [searchSection, setSearchSection] = useState<'form' | 'results'>('form');
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
   const [origen, setOrigen] = useState('');
   const [origenId, setOrigenId] = useState<number | null>(null);
-  const [origenSuggestions, setOrigenSuggestions] = useState<AirportSuggestion[]>([]);
   const [destino, setDestino] = useState('');
   const [destinoId, setDestinoId] = useState<number | null>(null);
-  const [destinoSuggestions, setDestinoSuggestions] = useState<AirportSuggestion[]>([]);
+  const [airportCatalog, setAirportCatalog] = useState<AirportSuggestion[]>([]);
+  const [origenError, setOrigenError] = useState('');
+  const [destinoError, setDestinoError] = useState('');
   const [fechaSalida, setFechaSalida] = useState('');
   const [fechaRegreso, setFechaRegreso] = useState('');
   const [pasajeros, setPasajeros] = useState(1);
+  const [pasajerosReserva, setPasajerosReserva] = useState(1);
   const [mensaje, setMensaje] = useState('');
   const [resultados, setResultados] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchingModal, setSearchingModal] = useState(false);
   const [vueloSeleccionado, setVueloSeleccionado] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchAirports = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/airports`);
+        const data = await response.json();
+        if (response.ok && Array.isArray(data)) {
+          setAirportCatalog(data);
+        } else {
+          setAirportCatalog([]);
+        }
+      } catch {
+        setAirportCatalog([]);
+      }
+    };
+
+    fetchAirports();
+  }, []);
 
   const formatDateTime = (dateTimeString: string): string => {
     try {
@@ -64,53 +91,46 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     }
   };
 
-  const fetchAirportSuggestions = async (query: string, setter: Dispatch<SetStateAction<AirportSuggestion[]>>) => {
-    if (query.length < 2) {
-      setter([]);
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/airport-suggestions?q=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setter(data);
-      } else {
-        setter([]);
-      }
-    } catch {
-      setter([]);
-    }
+  const findSuggestionId = (value: string, suggestions: AirportSuggestion[]): number | null => {
+    const target = normalizeAirportText(value);
+    const match = suggestions.find((suggestion) => normalizeAirportText(suggestion.label) === target);
+    return match ? match.id : null;
   };
 
-  const findSuggestionId = (value: string, suggestions: AirportSuggestion[]): number | null => {
-    const match = suggestions.find((suggestion) => suggestion.label === value);
-    return match ? match.id : null;
+  const resolveAirportIds = (value: string, suggestions: AirportSuggestion[]): number[] => {
+    if (!value.trim()) return [];
+
+    const target = normalizeAirportText(value);
+    const exactMatch = suggestions.find((suggestion) => normalizeAirportText(suggestion.label) === target);
+    if (!exactMatch) return [];
+
+    return [Number(exactMatch.id)];
   };
 
   const handleOrigenChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setOrigen(value);
-    setOrigenId(findSuggestionId(value, origenSuggestions));
-    fetchAirportSuggestions(value, setOrigenSuggestions);
+    setOrigenId(findSuggestionId(value, airportCatalog));
+    if (origenError) setOrigenError('');
   };
 
   const handleDestinoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setDestino(value);
-    setDestinoId(findSuggestionId(value, destinoSuggestions));
-    fetchAirportSuggestions(value, setDestinoSuggestions);
+    setDestinoId(findSuggestionId(value, airportCatalog));
+    if (destinoError) setDestinoError('');
   };
 
   const handleSeleccionarVuelo = (vuelo: any) => {
+    setPasajerosReserva(pasajeros);
     setVueloSeleccionado(vuelo);
     // Limpiar campos de búsqueda
     setOrigen('');
     setOrigenId(null);
-    setOrigenSuggestions([]);
+    setOrigenError('');
     setDestino('');
     setDestinoId(null);
-    setDestinoSuggestions([]);
+    setDestinoError('');
     setFechaSalida('');
     setFechaRegreso('');
     setPasajeros(1);
@@ -159,7 +179,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
           <ReservationForm
             vuelo={vueloSeleccionado}
             usuario={usuario}
-            cantidadPasajeros={pasajeros}
+            cantidadPasajeros={pasajerosReserva}
             onReservaConfirmada={handleReservaConfirmada}
           />
         </main>
@@ -171,9 +191,32 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     e.preventDefault();
     setMensaje('');
     setResultados([]);
+    setOrigenError('');
+    setDestinoError('');
 
-    if (!origenId || !destinoId) {
-      setMensaje('Selecciona origen y destino válidos de la lista de sugerencias.');
+    let origenIds: number[] = origenId ? [origenId] : [];
+    let destinoIds: number[] = destinoId ? [destinoId] : [];
+
+    if (origenIds.length === 0) {
+      origenIds = resolveAirportIds(origen, airportCatalog);
+      if (origenIds.length === 1) setOrigenId(origenIds[0]);
+    }
+
+    if (destinoIds.length === 0) {
+      destinoIds = resolveAirportIds(destino, airportCatalog);
+      if (destinoIds.length === 1) setDestinoId(destinoIds[0]);
+    }
+
+    if (origenIds.length === 0) {
+      setOrigenError('Debes seleccionar un aeropuerto de la lista.');
+    }
+
+    if (destinoIds.length === 0) {
+      setDestinoError('Debes seleccionar un aeropuerto de la lista.');
+    }
+
+    if (origenIds.length === 0 || destinoIds.length === 0) {
+      setMensaje('Corrige los campos marcados y selecciona aeropuertos válidos de la lista.');
       return;
     }
     if (!fechaSalida) {
@@ -201,8 +244,10 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     }
 
     const payload = {
-      origenId,
-      destinoId,
+      origenId: origenIds[0],
+      destinoId: destinoIds[0],
+      origenIds,
+      destinoIds,
       fechaSalida,
       fechaRegreso: searchFechaRegreso,
       tripType,
@@ -375,15 +420,24 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
                         type="text"
                         value={origen}
                         onChange={handleOrigenChange}
+                        onBlur={() => {
+                          const id = findSuggestionId(origen, airportCatalog);
+                          setOrigenId(id);
+                          if (!id && origen.trim()) {
+                            setOrigenError('Debes seleccionar un aeropuerto de la lista.');
+                          }
+                        }}
                         required
-                        className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
+                        aria-invalid={Boolean(origenError)}
+                        className={`w-full rounded-2xl bg-slate-50 px-4 py-3 focus:outline-none ${origenError ? 'border border-red-500 focus:border-red-600' : 'border border-slate-300 focus:border-blue-500'}`}
                         placeholder="Provincia o aeropuerto"
                       />
                       <datalist id="origen-options">
-                        {origenSuggestions.map((suggestion) => (
+                        {airportCatalog.map((suggestion) => (
                           <option key={suggestion.id} value={suggestion.label} />
                         ))}
                       </datalist>
+                      {origenError && <p className="text-sm font-medium text-red-600">{origenError}</p>}
                     </div>
                     <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                       <label htmlFor="destino" className="block text-sm font-medium text-slate-700">Destino</label>
@@ -393,15 +447,24 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
                         type="text"
                         value={destino}
                         onChange={handleDestinoChange}
+                        onBlur={() => {
+                          const id = findSuggestionId(destino, airportCatalog);
+                          setDestinoId(id);
+                          if (!id && destino.trim()) {
+                            setDestinoError('Debes seleccionar un aeropuerto de la lista.');
+                          }
+                        }}
                         required
-                        className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
+                        aria-invalid={Boolean(destinoError)}
+                        className={`w-full rounded-2xl bg-slate-50 px-4 py-3 focus:outline-none ${destinoError ? 'border border-red-500 focus:border-red-600' : 'border border-slate-300 focus:border-blue-500'}`}
                         placeholder="Provincia o aeropuerto"
                       />
                       <datalist id="destino-options">
-                        {destinoSuggestions.map((suggestion) => (
+                        {airportCatalog.map((suggestion) => (
                           <option key={suggestion.id} value={suggestion.label} />
                         ))}
                       </datalist>
+                      {destinoError && <p className="text-sm font-medium text-red-600">{destinoError}</p>}
                     </div>
                   </div>
 

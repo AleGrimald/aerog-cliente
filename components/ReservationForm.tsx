@@ -12,12 +12,14 @@ interface DatosTitular {
 }
 
 interface PasajeroRegistrado {
-  usuario_id: number;
+  temp_id: string;
   nombre: string;
   apellido: string;
   email: string;
   telefono: string;
   direccion: string;
+  dni: string;
+  edad: string;
 }
 
 interface NuevoPasajeroForm {
@@ -26,8 +28,8 @@ interface NuevoPasajeroForm {
   email: string;
   telefono: string;
   direccion: string;
-  fecha_nacimiento: string;
-  password: string;
+  dni: string;
+  edad: string;
 }
 
 interface ReservationFormProps {
@@ -72,8 +74,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     email: '',
     telefono: '',
     direccion: '',
-    fecha_nacimiento: '',
-    password: '',
+    dni: '',
+    edad: '',
   });
 
   const maxPasajerosAdicionales = Math.max(cantidadPasajeros - 1, 0);
@@ -116,8 +118,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       email: '',
       telefono: '',
       direccion: '',
-      fecha_nacimiento: '',
-      password: '',
+      dni: '',
+      edad: '',
     });
     setMostrarModal(true);
   };
@@ -129,8 +131,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       email: '',
       telefono: '',
       direccion: '',
-      fecha_nacimiento: '',
-      password: '',
+      dni: '',
+      edad: '',
     });
     setMostrarModal(false);
     setModalError('');
@@ -144,15 +146,15 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       filtered = valor.replace(/[^0-9]/g, '');
     } else if (campo === 'direccion') {
       filtered = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,#\-]/g, '');
-    } else if (campo === 'password') {
-      filtered = valor.replace(/['";\\`<>=]/g, '');
+    } else if (campo === 'dni' || campo === 'edad') {
+      filtered = valor.replace(/[^0-9]/g, '');
     }
     setNuevoPasajero((prev) => ({ ...prev, [campo]: filtered }));
   };
 
   const handlePasajeroAdicionalChange = (
     index: number,
-    campo: keyof Omit<PasajeroRegistrado, 'usuario_id'>,
+    campo: keyof Omit<PasajeroRegistrado, 'temp_id'>,
     valor: string
   ) => {
     let filtered = valor;
@@ -162,6 +164,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       filtered = valor.replace(/[^0-9]/g, '');
     } else if (campo === 'direccion') {
       filtered = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,#\-]/g, '');
+    } else if (campo === 'dni' || campo === 'edad') {
+      filtered = valor.replace(/[^0-9]/g, '');
     }
     setPasajerosAdicionales((prev) => {
       const updated = [...prev];
@@ -177,7 +181,6 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     e.preventDefault();
     setModalError('');
 
-    const sqlPattern = /['";\\`<>=]/;
     const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
     const soloNumeros = /^\d+$/;
     const direccionValida = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,#\-]+$/;
@@ -188,7 +191,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     if (!nuevoPasajero.apellido.trim() || nuevoPasajero.apellido.trim().length < 2 || !soloLetras.test(nuevoPasajero.apellido.trim())) {
       setModalError('El apellido solo puede contener letras (mín. 2 caracteres).'); return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevoPasajero.email) || sqlPattern.test(nuevoPasajero.email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevoPasajero.email)) {
       setModalError('Ingresa un email válido.'); return;
     }
     if (!soloNumeros.test(nuevoPasajero.telefono) || nuevoPasajero.telefono.length < 7 || nuevoPasajero.telefono.length > 15) {
@@ -197,45 +200,41 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     if (!nuevoPasajero.direccion.trim() || !direccionValida.test(nuevoPasajero.direccion) || nuevoPasajero.direccion.trim().length < 5) {
       setModalError('La dirección contiene caracteres no permitidos o es muy corta (mín. 5).'); return;
     }
-    if (!nuevoPasajero.fecha_nacimiento) {
-      setModalError('La fecha de nacimiento es obligatoria.'); return;
+    if (!soloNumeros.test(nuevoPasajero.dni) || nuevoPasajero.dni.length < 7 || nuevoPasajero.dni.length > 10) {
+      setModalError('El DNI debe contener solo dígitos (7-10).'); return;
     }
-    if (!nuevoPasajero.password || nuevoPasajero.password.length < 6 || sqlPattern.test(nuevoPasajero.password)) {
-      setModalError('La contraseña debe tener al menos 6 caracteres y no puede contener caracteres no permitidos.'); return;
+
+    if (!soloNumeros.test(nuevoPasajero.edad)) {
+      setModalError('La edad debe contener solo dígitos.'); return;
+    }
+
+    const edadNum = Number(nuevoPasajero.edad);
+    if (edadNum < 0 || edadNum > 120) {
+      setModalError('La edad debe estar entre 0 y 120.'); return;
+    }
+
+    if (pasajerosAdicionales.some((p) => p.dni === nuevoPasajero.dni)) {
+      setModalError('Ya agregaste un pasajero con ese DNI.'); return;
     }
 
     setGuardandoPasajero(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(nuevoPasajero),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        setModalError(data.error || 'No se pudo registrar el pasajero adicional.');
-        return;
-      }
-
       setPasajerosAdicionales((prev) => [
         ...prev,
         {
-          usuario_id: data.usuario_id,
+          temp_id: `sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           nombre: nuevoPasajero.nombre,
           apellido: nuevoPasajero.apellido,
           email: nuevoPasajero.email,
           telefono: nuevoPasajero.telefono,
           direccion: nuevoPasajero.direccion,
+          dni: nuevoPasajero.dni,
+          edad: nuevoPasajero.edad,
         },
       ]);
 
       cerrarModalPasajero();
-    } catch {
-      setModalError('No se pudo conectar con el servidor para registrar el pasajero.');
     } finally {
       setGuardandoPasajero(false);
     }
@@ -288,6 +287,14 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     setShowFormaPagoModal(true);
   };
   const handlePagarMasTarde = async () => {
+    if (pasajerosAdicionales.length !== maxPasajerosAdicionales) {
+      setMensajeReserva({
+        tipo: 'error',
+        texto: `Debes cargar ${maxPasajerosAdicionales} pasajero(s) adicional(es) para continuar.`,
+      });
+      return;
+    }
+
     setShowPagoModal(false);
     setShowConfirmingModal(true);
     setShowCheckmark(false);
@@ -299,11 +306,18 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     setShowCheckmark(false);
     setConfirmandoReserva(true);
     try {
-      const pasajeros_adicionales_ids = pasajerosAdicionales.map((p) => p.usuario_id);
       const payload = {
         vuelo_id: vuelo.vuelo_id,
         usuario_principal_id: usuario.usuario_id,
-        pasajeros_adicionales: pasajeros_adicionales_ids,
+        pasajeros_secundarios: pasajerosAdicionales.map((p) => ({
+          nombre: p.nombre,
+          apellido: p.apellido,
+          direccion: p.direccion,
+          telefono: p.telefono,
+          dni: p.dni,
+          edad: Number(p.edad),
+          email: p.email,
+        })),
         estado: 'pendiente',
       };
       const response = await fetch(`${API_BASE_URL}/confirmar-reserva`, {
@@ -399,6 +413,14 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
   };
 
   const handleConfirmarPago = async () => {
+    if (pasajerosAdicionales.length !== maxPasajerosAdicionales) {
+      setMensajeReserva({
+        tipo: 'error',
+        texto: `Debes cargar ${maxPasajerosAdicionales} pasajero(s) adicional(es) para continuar.`,
+      });
+      return;
+    }
+
     if (tipoPago !== 'mercadopago_qr') {
       if (!tarjetaSeleccionada) {
         setMensajeReserva({ tipo: 'error', texto: 'Selecciona una tarjeta para continuar.' });
@@ -416,13 +438,19 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     setMensajeReserva({ tipo: '', texto: '' });
     setConfirmandoReserva(true);
     try {
-      const pasajeros_adicionales_ids = pasajerosAdicionales.map((p) => p.usuario_id);
-      
       // Paso 1: Crear reserva con estado 'pendiente'
       const payloadReserva = {
         vuelo_id: vuelo.vuelo_id,
         usuario_principal_id: usuario.usuario_id,
-        pasajeros_adicionales: pasajeros_adicionales_ids,
+        pasajeros_secundarios: pasajerosAdicionales.map((p) => ({
+          nombre: p.nombre,
+          apellido: p.apellido,
+          direccion: p.direccion,
+          telefono: p.telefono,
+          dni: p.dni,
+          edad: Number(p.edad),
+          email: p.email,
+        })),
         estado: 'pendiente',
       };
       const responseReserva = await fetch(`${API_BASE_URL}/confirmar-reserva`, {
@@ -882,14 +910,14 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
                 onClick={abrirModalPasajero}
                 className="mt-4 w-full rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
               >
-                Agregar pasajero
+                Agregar Pasajero
               </button>
             )}
 
             {pasajerosAdicionales.length > 0 && (
               <div className="mt-6 space-y-3">
                 {pasajerosAdicionales.map((pasajero, index) => (
-                  <div key={pasajero.usuario_id} className="rounded-2xl border border-slate-200 p-4">
+                  <div key={pasajero.temp_id} className="rounded-2xl border border-slate-200 p-4">
                     <p className="font-semibold text-slate-900">Pasajero {index + 2}</p>
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <div>
@@ -934,6 +962,24 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
                           type="text"
                           value={pasajero.direccion}
                           onChange={(e) => handlePasajeroAdicionalChange(index, 'direccion', e.target.value)}
+                          className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">DNI</label>
+                        <input
+                          type="text"
+                          value={pasajero.dni}
+                          onChange={(e) => handlePasajeroAdicionalChange(index, 'dni', e.target.value)}
+                          className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Edad</label>
+                        <input
+                          type="text"
+                          value={pasajero.edad}
+                          onChange={(e) => handlePasajeroAdicionalChange(index, 'edad', e.target.value)}
                           className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
                         />
                       </div>
@@ -987,16 +1033,6 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
 
             <form onSubmit={handleGuardarPasajero} className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700">Nombre</label>
-                <input
-                  type="text"
-                  value={nuevoPasajero.nombre}
-                  onChange={(e) => handleNuevoPasajeroChange('nombre', e.target.value)}
-                  required
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-slate-700">Apellido</label>
                 <input
                   type="text"
@@ -1007,21 +1043,21 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700">Email</label>
+                <label className="block text-sm font-medium text-slate-700">Nombre</label>
                 <input
-                  type="email"
-                  value={nuevoPasajero.email}
-                  onChange={(e) => handleNuevoPasajeroChange('email', e.target.value)}
+                  type="text"
+                  value={nuevoPasajero.nombre}
+                  onChange={(e) => handleNuevoPasajeroChange('nombre', e.target.value)}
                   required
                   className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700">Contraseña</label>
+                <label className="block text-sm font-medium text-slate-700">Dirección</label>
                 <input
-                  type="password"
-                  value={nuevoPasajero.password}
-                  onChange={(e) => handleNuevoPasajeroChange('password', e.target.value)}
+                  type="text"
+                  value={nuevoPasajero.direccion}
+                  onChange={(e) => handleNuevoPasajeroChange('direccion', e.target.value)}
                   required
                   className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
                 />
@@ -1037,21 +1073,31 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700">Fecha de nacimiento</label>
+                <label className="block text-sm font-medium text-slate-700">DNI</label>
                 <input
-                  type="date"
-                  value={nuevoPasajero.fecha_nacimiento}
-                  onChange={(e) => handleNuevoPasajeroChange('fecha_nacimiento', e.target.value)}
+                  type="text"
+                  value={nuevoPasajero.dni}
+                  onChange={(e) => handleNuevoPasajeroChange('dni', e.target.value)}
+                  required
+                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Edad</label>
+                <input
+                  type="text"
+                  value={nuevoPasajero.edad}
+                  onChange={(e) => handleNuevoPasajeroChange('edad', e.target.value)}
                   required
                   className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">Dirección</label>
+                <label className="block text-sm font-medium text-slate-700">Email</label>
                 <input
-                  type="text"
-                  value={nuevoPasajero.direccion}
-                  onChange={(e) => handleNuevoPasajeroChange('direccion', e.target.value)}
+                  type="email"
+                  value={nuevoPasajero.email}
+                  onChange={(e) => handleNuevoPasajeroChange('email', e.target.value)}
                   required
                   className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none"
                 />

@@ -37,6 +37,18 @@ interface Reserva {
   pago_fecha?: string;
   pago_cuotas?: number;
   pago_tarjeta_ultimos4?: string;
+  cantidad_pasajeros?: number;
+}
+
+interface PasajeroSecundario {
+  usuario_secundario_id: number;
+  apellido: string;
+  nombre: string;
+  direccion: string;
+  telefono: string;
+  dni: string;
+  edad: number;
+  email: string;
 }
 
 interface MyReservationsProps {
@@ -65,6 +77,11 @@ const formatCurrency = (value: number): string => {
   return Number(value).toFixed(2);
 };
 
+const normalizeLast4 = (value?: string): string => {
+  const text = String(value || '').trim();
+  return /^\d{4}$/.test(text) ? text : '';
+};
+
 export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +100,10 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const [qrCheckoutUrl, setQrCheckoutUrl] = useState('');
   const [cvvPago, setCvvPago] = useState('');
   const [cvvError, setCvvError] = useState('');
+  const [secundariosModal, setSecundariosModal] = useState<{ open: boolean; reserva: Reserva | null }>({ open: false, reserva: null });
+  const [secundarios, setSecundarios] = useState<PasajeroSecundario[]>([]);
+  const [loadingSecundarios, setLoadingSecundarios] = useState(false);
+  const [errorSecundarios, setErrorSecundarios] = useState('');
   // Cargar tarjetas guardadas al abrir modal de pago
   const cargarTarjetas = async () => {
     if (!pagoModal.reserva) return;
@@ -127,6 +148,37 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const qrImageUrl = qrCheckoutUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrCheckoutUrl)}`
     : '';
+
+  const getCantidadPasajeros = (reserva: Reserva): number => {
+    const cantidad = Number(reserva.cantidad_pasajeros || 1);
+    if (!Number.isFinite(cantidad) || cantidad < 1) return 1;
+    return cantidad;
+  };
+
+  const getTotalBaseReserva = (reserva: Reserva): number => {
+    return Number(reserva.precio_base || 0) * getCantidadPasajeros(reserva);
+  };
+
+  const handleVerPasajerosAdicionales = async (reserva: Reserva) => {
+    setSecundariosModal({ open: true, reserva });
+    setLoadingSecundarios(true);
+    setErrorSecundarios('');
+    setSecundarios([]);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/reserva-secundarios/${reserva.reserva_id}`);
+      const data = await response.json();
+      if (!response.ok) {
+        setErrorSecundarios(data.error || 'No se pudieron cargar los pasajeros adicionales.');
+        return;
+      }
+      setSecundarios(Array.isArray(data.secundarios) ? data.secundarios : []);
+    } catch {
+      setErrorSecundarios('No se pudo conectar con el servidor.');
+    } finally {
+      setLoadingSecundarios(false);
+    }
+  };
   
   // Handler para abrir modal de pago
   const handlePagarAhora = (reserva: Reserva) => {
@@ -433,6 +485,9 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                     {reserva.nombre} {reserva.apellido}
                   </p>
                   <p className="text-sm text-slate-500">{reserva.email}</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Cantidad de pasajeros: <span className="font-semibold text-slate-900">{getCantidadPasajeros(reserva)}</span>
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-600">Fecha de Reserva</p>
@@ -446,33 +501,52 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
             {/* Precio, botón cancelar y Pagar Ahora si pendiente */}
             <div className="flex flex-col gap-4 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
               <div>
-                <p className="text-sm font-medium text-slate-600">Precio</p>
-                {reserva.estado === 'confirmada' && reserva.pago_monto ? (
-                  <>
-                    <p className="text-2xl font-bold text-blue-600">${formatCurrency(reserva.pago_monto)}</p>
-                    {Number(reserva.pago_interes || 0) > 0 && (
-                      <p className="text-xs text-slate-500">Incluye {(Number(reserva.pago_interes) * 100).toFixed(0)}% de interés</p>
-                    )}
-                    {Number(reserva.pago_cuotas || 1) > 1 && (
-                      <p className="text-xs text-slate-500">
-                        {reserva.pago_cuotas} cuotas de $ {formatCurrency(Number(reserva.pago_monto) / Number(reserva.pago_cuotas))}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-2xl font-bold text-blue-600">${reserva.precio_base}</p>
+                <p className="text-sm font-medium text-slate-600">Monto Total</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  ${formatCurrency(
+                    reserva.estado === 'confirmada' && reserva.pago_monto
+                      ? Number(reserva.pago_monto)
+                      : getTotalBaseReserva(reserva)
+                  )}
+                </p>
+                <p className="text-xs text-slate-500">Precio base: ${formatCurrency(getTotalBaseReserva(reserva))}</p>
+                {getCantidadPasajeros(reserva) > 1 && (
+                  <p className="text-xs text-slate-500">Precio por pasajero: ${formatCurrency(Number(reserva.precio_base || 0))}</p>
                 )}
               </div>
               {reserva.estado === 'confirmada' && reserva.pago_metodo && (
                 <div>
                   <p className="text-sm font-medium text-slate-600">Método de Pago</p>
+                  {(() => {
+                    const ultimos4 = normalizeLast4(reserva.pago_tarjeta_ultimos4);
+                    return (
                   <p className="text-base font-semibold text-slate-900">
                     {reserva.pago_metodo}
-                    {reserva.pago_tarjeta_ultimos4 ? ` - **** ${reserva.pago_tarjeta_ultimos4}` : ''}
+                    {ultimos4 ? ` - **** ${ultimos4}` : ''}
+                  </p>
+                    );
+                  })()}
+                  <p className="text-xs text-slate-500">
+                    Cuotas: {Number(reserva.pago_cuotas || 1)}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Monto por cuota: $
+                    {formatCurrency(Number(reserva.pago_monto || getTotalBaseReserva(reserva)) / Number(reserva.pago_cuotas || 1))}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Interés: {(Number(reserva.pago_interes || 0) * 100).toFixed(0)}%
                   </p>
                 </div>
               )}
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+                {getCantidadPasajeros(reserva) > 1 && (
+                  <button
+                    onClick={() => handleVerPasajerosAdicionales(reserva)}
+                    className="w-full rounded-full bg-slate-700 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto"
+                  >
+                    Ver Pasajeros Adicionales
+                  </button>
+                )}
                 {reserva.estado === 'pendiente' && (
                   <button
                     onClick={() => handlePagarAhora(reserva)}
@@ -729,6 +803,59 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
               Sí, cancelar
             </button>
           </div>
+        </div>
+      </div>
+    )}
+
+    {secundariosModal.open && secundariosModal.reserva && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-xl font-bold text-slate-900">Pasajeros adicionales de la reserva</h3>
+            <button
+              onClick={() => setSecundariosModal({ open: false, reserva: null })}
+              className="w-full rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
+            >
+              Cerrar
+            </button>
+          </div>
+
+          <p className="mb-4 text-sm text-slate-600">
+            Vuelo: <span className="font-semibold text-slate-900">{secundariosModal.reserva.codigo_vuelo}</span>
+          </p>
+
+          {loadingSecundarios && <p className="text-slate-600">Cargando pasajeros adicionales...</p>}
+
+          {!loadingSecundarios && errorSecundarios && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+              {errorSecundarios}
+            </div>
+          )}
+
+          {!loadingSecundarios && !errorSecundarios && secundarios.length === 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              Esta reserva no tiene pasajeros adicionales cargados.
+            </div>
+          )}
+
+          {!loadingSecundarios && !errorSecundarios && secundarios.length > 0 && (
+            <div className="space-y-3">
+              {secundarios.map((sec, idx) => (
+                <div key={sec.usuario_secundario_id} className="rounded-2xl border border-slate-200 p-4">
+                  <p className="font-semibold text-slate-900">Pasajero adicional #{idx + 1}</p>
+                  <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                    <p><span className="font-medium text-slate-600">Apellido:</span> {sec.apellido}</p>
+                    <p><span className="font-medium text-slate-600">Nombre:</span> {sec.nombre}</p>
+                    <p><span className="font-medium text-slate-600">Dirección:</span> {sec.direccion}</p>
+                    <p><span className="font-medium text-slate-600">Teléfono:</span> {sec.telefono}</p>
+                    <p><span className="font-medium text-slate-600">DNI:</span> {sec.dni}</p>
+                    <p><span className="font-medium text-slate-600">Edad:</span> {sec.edad}</p>
+                    <p className="md:col-span-2"><span className="font-medium text-slate-600">Email:</span> {sec.email}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     )}
