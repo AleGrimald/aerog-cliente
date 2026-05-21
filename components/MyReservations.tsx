@@ -51,6 +51,11 @@ interface PasajeroSecundario {
   email: string;
 }
 
+interface AsientoReserva {
+  asiento_codigo: string;
+  numero_pasajero: number;
+}
+
 interface MyReservationsProps {
   usuarioId: number;
 }
@@ -104,6 +109,10 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const [secundarios, setSecundarios] = useState<PasajeroSecundario[]>([]);
   const [loadingSecundarios, setLoadingSecundarios] = useState(false);
   const [errorSecundarios, setErrorSecundarios] = useState('');
+  const [asientosPorReserva, setAsientosPorReserva] = useState<Record<number, AsientoReserva[]>>({});
+  const [asientosModal, setAsientosModal] = useState<{ open: boolean; reserva: Reserva | null }>({ open: false, reserva: null });
+  const [loadingAsientosModal, setLoadingAsientosModal] = useState(false);
+  const [errorAsientosModal, setErrorAsientosModal] = useState('');
   // Cargar tarjetas guardadas al abrir modal de pago
   const cargarTarjetas = async () => {
     if (!pagoModal.reserva) return;
@@ -177,6 +186,35 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       setErrorSecundarios('No se pudo conectar con el servidor.');
     } finally {
       setLoadingSecundarios(false);
+    }
+  };
+
+  const cargarAsientosDeReserva = async (reservaId: number) => {
+    if (asientosPorReserva[reservaId]) {
+      return asientosPorReserva[reservaId];
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reserva-asientos/${reservaId}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'No se pudieron cargar los asientos de la reserva.');
+    }
+
+    const asientos: AsientoReserva[] = Array.isArray(data.asientos) ? data.asientos : [];
+    setAsientosPorReserva((prev) => ({ ...prev, [reservaId]: asientos }));
+    return asientos;
+  };
+
+  const handleVerAsientos = async (reserva: Reserva) => {
+    setAsientosModal({ open: true, reserva });
+    setLoadingAsientosModal(true);
+    setErrorAsientosModal('');
+    try {
+      await cargarAsientosDeReserva(reserva.reserva_id);
+    } catch (err: any) {
+      setErrorAsientosModal(err?.message || 'No se pudieron cargar los asientos.');
+    } finally {
+      setLoadingAsientosModal(false);
     }
   };
   
@@ -354,7 +392,17 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
         }
       }
 
-      setReservas(Array.from(reservasUnicas.values()));
+      const deduplicadas = Array.from(reservasUnicas.values());
+      setReservas(deduplicadas);
+
+      const cargas = deduplicadas.map(async (reserva) => {
+        try {
+          await cargarAsientosDeReserva(reserva.reserva_id);
+        } catch {
+          // Si falla esta consulta, la reserva sigue visible.
+        }
+      });
+      await Promise.all(cargas);
     } catch {
       setError('No se pudo conectar con el servidor.');
     } finally {
@@ -494,11 +542,37 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                   <p className="text-base font-semibold text-slate-900">
                     {formatDateTime(reserva.fecha_reserva)}
                   </p>
+                  {getCantidadPasajeros(reserva) <= 1 && (
+                    <p className="mt-2 text-sm text-slate-600">
+                      Numero de asiento:{' '}
+                      <span className="font-semibold text-slate-900">
+                        {asientosPorReserva[reserva.reserva_id]?.[0]?.asiento_codigo || 'No asignado'}
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Precio, botón cancelar y Pagar Ahora si pendiente */}
+            {/* Botones de asientos y pasajeros adicionales */}
+            {getCantidadPasajeros(reserva) > 1 && (
+              <div className="flex flex-col gap-3 border-t border-b border-slate-200 py-4 sm:flex-row sm:gap-2">
+                <button
+                  onClick={() => handleVerAsientos(reserva)}
+                  className="rounded-full bg-indigo-600 px-8 py-4 text-base font-semibold text-white hover:bg-indigo-700"
+                >
+                  Numeros de Asiento
+                </button>
+                <button
+                  onClick={() => handleVerPasajerosAdicionales(reserva)}
+                  className="rounded-full bg-slate-700 px-8 py-4 text-base font-semibold text-white hover:bg-slate-800"
+                >
+                  Ver Pasajeros Adicionales
+                </button>
+              </div>
+            )}
+
+            {/* Precio, Método de Pago y Cancelar */}
             <div className="flex flex-col gap-4 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
               <div>
                 <p className="text-sm font-medium text-slate-600">Monto Total</p>
@@ -538,23 +612,23 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                   </p>
                 </div>
               )}
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
-                {getCantidadPasajeros(reserva) > 1 && (
-                  <button
-                    onClick={() => handleVerPasajerosAdicionales(reserva)}
-                    className="w-full rounded-full bg-slate-700 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto"
-                  >
-                    Ver Pasajeros Adicionales
-                  </button>
-                )}
-                {reserva.estado === 'pendiente' && (
-                  <button
-                    onClick={() => handlePagarAhora(reserva)}
-                    className="w-full rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
-                  >
-                    Pagar Ahora
-                  </button>
-                )}
+              <button
+                onClick={() => handleCancelar(reserva.reserva_id)}
+                className="rounded-full bg-red-600 px-8 py-3 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Cancelar
+              </button>
+            </div>
+
+            {/* Pagar Ahora */}
+            {reserva.estado === 'pendiente' && (
+              <div className="flex flex-col gap-2 border-t border-slate-200 pt-4">
+                <button
+                  onClick={() => handlePagarAhora(reserva)}
+                  className="rounded-full bg-blue-600 px-8 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Pagar Ahora
+                </button>
                     {/* Modal de pago para reservas pendientes */}
                     {pagoModal.open && pagoModal.reserva && (
                       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -770,14 +844,8 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                         )}
                       </div>
                     )}
-                <button
-                  onClick={() => handleCancelar(reserva.reserva_id)}
-                  className="w-full rounded-full bg-red-600 px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 sm:w-auto"
-                >
-                  Cancelar
-                </button>
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
@@ -852,6 +920,53 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                     <p><span className="font-medium text-slate-600">Edad:</span> {sec.edad}</p>
                     <p className="md:col-span-2"><span className="font-medium text-slate-600">Email:</span> {sec.email}</p>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
+    {asientosModal.open && asientosModal.reserva && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-xl font-bold text-slate-900">Numeros de Asiento</h3>
+            <button
+              onClick={() => setAsientosModal({ open: false, reserva: null })}
+              className="w-full rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
+            >
+              Cerrar
+            </button>
+          </div>
+
+          <p className="mb-4 text-sm text-slate-600">
+            Vuelo: <span className="font-semibold text-slate-900">{asientosModal.reserva.codigo_vuelo}</span>
+          </p>
+
+          {loadingAsientosModal && <p className="text-slate-600">Cargando asientos...</p>}
+
+          {!loadingAsientosModal && errorAsientosModal && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+              {errorAsientosModal}
+            </div>
+          )}
+
+          {!loadingAsientosModal && !errorAsientosModal && (asientosPorReserva[asientosModal.reserva.reserva_id] || []).length === 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              Esta reserva no tiene asientos registrados.
+            </div>
+          )}
+
+          {!loadingAsientosModal && !errorAsientosModal && (asientosPorReserva[asientosModal.reserva.reserva_id] || []).length > 0 && (
+            <div className="space-y-3">
+              {(asientosPorReserva[asientosModal.reserva.reserva_id] || []).map((asiento) => (
+                <div key={`${asientosModal.reserva?.reserva_id}-${asiento.numero_pasajero}-${asiento.asiento_codigo}`} className="rounded-2xl border border-slate-200 p-4">
+                  <p className="text-sm text-slate-600">
+                    Pasajero #{asiento.numero_pasajero}:
+                    <span className="ml-2 text-base font-semibold text-slate-900">{asiento.asiento_codigo}</span>
+                  </p>
                 </div>
               ))}
             </div>

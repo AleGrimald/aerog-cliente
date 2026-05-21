@@ -39,6 +39,8 @@ interface ReservationFormProps {
   onReservaConfirmada?: () => void;
 }
 
+const COLUMNAS_ASIENTOS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
 export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onReservaConfirmada }: ReservationFormProps) {
   const [datosTitular, setDatosTitular] = useState<DatosTitular>({
     nombre: usuario.nombre || '',
@@ -62,6 +64,11 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
   const [tipoPago, setTipoPago] = useState<'debito' | 'credito' | 'mercadopago_qr' | null>(null);
   const [cuotas, setCuotas] = useState(1);
   const [mensajeReserva, setMensajeReserva] = useState({ tipo: '', texto: '' });
+  const [showAsientosModal, setShowAsientosModal] = useState(false);
+  const [asientosSeleccionados, setAsientosSeleccionados] = useState<string[]>([]);
+  const [asientosConfirmados, setAsientosConfirmados] = useState(false);
+  const [asientosOcupados, setAsientosOcupados] = useState<string[]>([]);
+  const [loadingAsientos, setLoadingAsientos] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCheckoutUrl, setQrCheckoutUrl] = useState('');
   const [qrReservaId, setQrReservaId] = useState<number | null>(null);
@@ -79,6 +86,69 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
   });
 
   const maxPasajerosAdicionales = Math.max(cantidadPasajeros - 1, 0);
+
+  const asientosRequeridos = cantidadPasajeros;
+  const capacidadTotal = Number(vuelo?.capacidad_total) > 0 ? Number(vuelo.capacidad_total) : 0;
+  const totalFilas = Math.ceil(capacidadTotal / COLUMNAS_ASIENTOS.length);
+
+  const normalizarAsiento = (asiento: string) => asiento.trim().toUpperCase();
+
+  const asientoExistePorCapacidad = (fila: string, numeroFila: number) => {
+    if (capacidadTotal <= 0) return false;
+    const idxColumna = COLUMNAS_ASIENTOS.indexOf(fila);
+    if (idxColumna < 0) return false;
+    const ordenAsiento = ((numeroFila - 1) * COLUMNAS_ASIENTOS.length) + idxColumna + 1;
+    return ordenAsiento <= capacidadTotal;
+  };
+
+  const cargarAsientosOcupados = async () => {
+    try {
+      setLoadingAsientos(true);
+      const response = await fetch(`${API_BASE_URL}/asientos-vuelo/${vuelo.vuelo_id}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudieron obtener los asientos ocupados.');
+      }
+      const ocupados = Array.isArray(data.asientos_ocupados)
+        ? data.asientos_ocupados.map((a: string) => normalizarAsiento(a))
+        : [];
+      setAsientosOcupados(ocupados);
+    } catch {
+      setMensajeReserva({ tipo: 'error', texto: 'No se pudo cargar el mapa de asientos.' });
+    } finally {
+      setLoadingAsientos(false);
+    }
+  };
+
+  const abrirModalAsientos = async () => {
+    setMensajeReserva({ tipo: '', texto: '' });
+    await cargarAsientosOcupados();
+    setShowAsientosModal(true);
+  };
+
+  const toggleAsiento = (asiento: string) => {
+    const asientoNorm = normalizarAsiento(asiento);
+    if (asientosOcupados.includes(asientoNorm)) {
+      return;
+    }
+    setAsientosSeleccionados((prev) => {
+      if (prev.includes(asientoNorm)) {
+        setAsientosConfirmados(false);
+        return prev.filter((a) => a !== asientoNorm);
+      }
+      if (prev.length >= asientosRequeridos) {
+        return prev;
+      }
+      setAsientosConfirmados(false);
+      return [...prev, asientoNorm];
+    });
+  };
+
+  useEffect(() => {
+    setAsientosSeleccionados([]);
+    setAsientosConfirmados(false);
+    setAsientosOcupados([]);
+  }, [vuelo.vuelo_id, cantidadPasajeros]);
 
   const calcularResumenPago = () => {
     const subtotal = vuelo.precio_base * cantidadPasajeros;
@@ -277,6 +347,23 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       setMensajeReserva({ tipo: 'error', texto: errs.join(' ') });
       return;
     }
+
+    if (asientosSeleccionados.length !== asientosRequeridos) {
+      setMensajeReserva({
+        tipo: 'error',
+        texto: `Debes seleccionar ${asientosRequeridos} asiento(s) disponible(s).`,
+      });
+      return;
+    }
+
+    if (!asientosConfirmados) {
+      setMensajeReserva({
+        tipo: 'error',
+        texto: 'Debes confirmar los asientos con el boton Aceptar en la modal.',
+      });
+      return;
+    }
+
     setMensajeReserva({ tipo: '', texto: '' });
     setShowPagoModal(true);
   };
@@ -309,6 +396,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       const payload = {
         vuelo_id: vuelo.vuelo_id,
         usuario_principal_id: usuario.usuario_id,
+        asientos_seleccionados: asientosSeleccionados,
         pasajeros_secundarios: pasajerosAdicionales.map((p) => ({
           nombre: p.nombre,
           apellido: p.apellido,
@@ -442,6 +530,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       const payloadReserva = {
         vuelo_id: vuelo.vuelo_id,
         usuario_principal_id: usuario.usuario_id,
+        asientos_seleccionados: asientosSeleccionados,
         pasajeros_secundarios: pasajerosAdicionales.map((p) => ({
           nombre: p.nombre,
           apellido: p.apellido,
@@ -800,6 +889,141 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
       </div>
     )}
 
+    {showAsientosModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">Seleccionar Asientos</h3>
+              <p className="text-sm text-slate-600">
+                Selecciona {asientosRequeridos} asiento(s). No disponibles: gris.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAsientosModal(false)}
+              className="w-full rounded-full bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
+            >
+              Cerrar
+            </button>
+          </div>
+
+          <div className="mb-4 flex flex-wrap gap-3 text-sm">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">Disponibles</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">Sin asiento</span>
+            <span className="rounded-full bg-slate-300 px-3 py-1 text-slate-700">No disponibles</span>
+            <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700">Seleccionados</span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 p-3">
+            {loadingAsientos ? (
+              <p className="py-8 text-center text-slate-500">Cargando asientos...</p>
+            ) : capacidadTotal <= 0 ? (
+              <p className="py-8 text-center text-slate-500">No se encontro capacidad del avion para este vuelo.</p>
+            ) : (
+              <div className="min-w-[760px] space-y-2">
+                {Array.from({ length: totalFilas }, (_, idxFila) => {
+                  const numeroFila = idxFila + 1;
+                  return (
+                    <div key={numeroFila} className="grid grid-cols-[48px,1fr] gap-2">
+                      <div className="flex items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-600">
+                        {numeroFila}
+                      </div>
+                      <div className="grid grid-cols-9 gap-2">
+                        {[
+                          { type: 'seat', code: 'A' },
+                          { type: 'seat', code: 'B' },
+                          { type: 'aisle', code: 'L' },
+                          { type: 'seat', code: 'C' },
+                          { type: 'seat', code: 'D' },
+                          { type: 'seat', code: 'E' },
+                          { type: 'aisle', code: 'R' },
+                          { type: 'seat', code: 'F' },
+                          { type: 'seat', code: 'G' },
+                        ].map((slot) => {
+                          if (slot.type === 'aisle') {
+                            return <div key={`pasillo-${slot.code}-${numeroFila}`} className="col-span-1" />;
+                          }
+
+                          const fila = slot.code;
+                          const asiento = `${fila}${numeroFila}`;
+                          const existe = asientoExistePorCapacidad(fila, numeroFila);
+
+                          if (!existe) {
+                            return (
+                              <div
+                                key={asiento}
+                                className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-100 px-2 py-2 text-xs font-semibold text-slate-400"
+                              >
+                                --
+                              </div>
+                            );
+                          }
+
+                          const ocupado = asientosOcupados.includes(asiento);
+                          const seleccionado = asientosSeleccionados.includes(asiento);
+                          return (
+                            <button
+                              key={asiento}
+                              type="button"
+                              disabled={ocupado}
+                              onClick={() => toggleAsiento(asiento)}
+                              className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                                ocupado
+                                  ? 'cursor-not-allowed border-slate-300 bg-slate-300 text-slate-500'
+                                  : seleccionado
+                                    ? 'border-blue-600 bg-blue-100 text-blue-700'
+                                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400'
+                              }`}
+                            >
+                              {asiento}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-700">
+              Seleccionados ({asientosSeleccionados.length}/{asientosRequeridos}):{' '}
+              {asientosSeleccionados.length > 0 ? asientosSeleccionados.join(', ') : 'Ninguno'}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={cargarAsientosOcupados}
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                Refrescar disponibilidad
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (asientosSeleccionados.length !== asientosRequeridos) {
+                    setMensajeReserva({
+                      tipo: 'error',
+                      texto: `Debes seleccionar ${asientosRequeridos} asiento(s) para confirmar.`,
+                    });
+                    return;
+                  }
+                  setAsientosConfirmados(true);
+                  setShowAsientosModal(false);
+                }}
+                className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Aceptar asientos
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
 
     <div className="space-y-6">
       {/* Datos del Vuelo - NO EDITABLE */}
@@ -994,7 +1218,14 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
 
       {/* Botones de Acción */}
       <div className="space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={abrirModalAsientos}
+            disabled={confirmandoReserva}
+            className="w-full rounded-3xl bg-slate-700 px-6 py-4 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Seleccionar Asiento
+          </button>
           <button
             onClick={handleConfirmar}
             disabled={confirmandoReserva}
@@ -1002,6 +1233,14 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
           >
             {confirmandoReserva ? 'Confirmando...' : 'Confirmar Reserva'}
           </button>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Asientos seleccionados ({asientosSeleccionados.length}/{asientosRequeridos}):{' '}
+          {asientosSeleccionados.length > 0 ? asientosSeleccionados.join(', ') : 'Aun no seleccionados'}
+          <span className="ml-2 font-semibold text-slate-900">
+            ({asientosConfirmados ? 'Confirmados' : 'Sin confirmar'})
+          </span>
         </div>
 
         {mensajeReserva.texto && (
