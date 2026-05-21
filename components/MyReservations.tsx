@@ -291,11 +291,6 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
     setShowConfirmingModal(true);
     setShowCheckmark(false);
     setMensajePago('');
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setShowCheckmark(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setShowConfirmingModal(false);
-    setShowCheckmark(false);
     try {
       const payload = {
         reserva_id: pagoModal.reserva.reserva_id,
@@ -315,11 +310,16 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
         setMensajePago(data.error || 'No se pudo procesar el pago.');
         return;
       }
+      setShowCheckmark(true);
       setMensajePago('Pago realizado y reserva confirmada.');
       await fetchReservas();
-      setTimeout(() => setPagoModal({ open: false, reserva: null }), 1200);
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      setPagoModal({ open: false, reserva: null });
     } catch {
       setMensajePago('No se pudo conectar con el servidor.');
+    } finally {
+      setShowConfirmingModal(false);
+      setShowCheckmark(false);
     }
   };
 
@@ -573,48 +573,50 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
             )}
 
             {/* Precio, Método de Pago y Cancelar */}
-            <div className="flex flex-col gap-4 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-              <div>
-                <p className="text-sm font-medium text-slate-600">Monto Total</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  ${formatCurrency(
-                    reserva.estado === 'confirmada' && reserva.pago_monto
-                      ? Number(reserva.pago_monto)
-                      : getTotalBaseReserva(reserva)
+            <div className="relative border-t border-slate-200 pt-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Monto Total</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    ${formatCurrency(
+                      reserva.estado === 'confirmada' && reserva.pago_monto
+                        ? Number(reserva.pago_monto)
+                        : getTotalBaseReserva(reserva)
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-500">Precio base: ${formatCurrency(getTotalBaseReserva(reserva))}</p>
+                  {getCantidadPasajeros(reserva) > 1 && (
+                    <p className="text-xs text-slate-500">Precio por pasajero: ${formatCurrency(Number(reserva.precio_base || 0))}</p>
                   )}
-                </p>
-                <p className="text-xs text-slate-500">Precio base: ${formatCurrency(getTotalBaseReserva(reserva))}</p>
-                {getCantidadPasajeros(reserva) > 1 && (
-                  <p className="text-xs text-slate-500">Precio por pasajero: ${formatCurrency(Number(reserva.precio_base || 0))}</p>
+                </div>
+                {reserva.estado === 'confirmada' && reserva.pago_metodo && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Método de Pago</p>
+                    {(() => {
+                      const ultimos4 = normalizeLast4(reserva.pago_tarjeta_ultimos4);
+                      return (
+                        <p className="text-base font-semibold text-slate-900">
+                          {reserva.pago_metodo}
+                          {ultimos4 ? ` - **** ${ultimos4}` : ''}
+                        </p>
+                      );
+                    })()}
+                    <p className="text-xs text-slate-500">
+                      Cuotas: {Number(reserva.pago_cuotas || 1)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Monto por cuota: $
+                      {formatCurrency(Number(reserva.pago_monto || getTotalBaseReserva(reserva)) / Number(reserva.pago_cuotas || 1))}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Interés: {(Number(reserva.pago_interes || 0) * 100).toFixed(0)}%
+                    </p>
+                  </div>
                 )}
               </div>
-              {reserva.estado === 'confirmada' && reserva.pago_metodo && (
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Método de Pago</p>
-                  {(() => {
-                    const ultimos4 = normalizeLast4(reserva.pago_tarjeta_ultimos4);
-                    return (
-                  <p className="text-base font-semibold text-slate-900">
-                    {reserva.pago_metodo}
-                    {ultimos4 ? ` - **** ${ultimos4}` : ''}
-                  </p>
-                    );
-                  })()}
-                  <p className="text-xs text-slate-500">
-                    Cuotas: {Number(reserva.pago_cuotas || 1)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Monto por cuota: $
-                    {formatCurrency(Number(reserva.pago_monto || getTotalBaseReserva(reserva)) / Number(reserva.pago_cuotas || 1))}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Interés: {(Number(reserva.pago_interes || 0) * 100).toFixed(0)}%
-                  </p>
-                </div>
-              )}
               <button
                 onClick={() => handleCancelar(reserva.reserva_id)}
-                className="rounded-full bg-red-600 px-8 py-3 text-sm font-semibold text-white hover:bg-red-700"
+                className="mt-4 rounded-full bg-red-600 px-8 py-3 text-sm font-semibold text-white hover:bg-red-700 md:absolute md:right-0 md:top-1/2 md:mt-0 md:-translate-y-1/2"
               >
                 Cancelar
               </button>

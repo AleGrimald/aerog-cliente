@@ -386,11 +386,6 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     setShowConfirmingModal(true);
     setShowCheckmark(false);
     setMensajeReserva({ tipo: '', texto: '' });
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setShowCheckmark(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setShowConfirmingModal(false);
-    setShowCheckmark(false);
     setConfirmandoReserva(true);
     try {
       const payload = {
@@ -418,13 +413,17 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         setMensajeReserva({ tipo: 'error', texto: data.error || 'No se pudo crear la reserva.' });
         return;
       }
+      setShowCheckmark(true);
       setMensajeReserva({ tipo: 'exito', texto: 'Reserva creada como pendiente de pago.' });
+      await new Promise((resolve) => setTimeout(resolve, 700));
       if (onReservaConfirmada) {
-        setTimeout(() => { onReservaConfirmada(); }, 2000);
+        onReservaConfirmada();
       }
     } catch {
       setMensajeReserva({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });
     } finally {
+      setShowConfirmingModal(false);
+      setShowCheckmark(false);
       setConfirmandoReserva(false);
     }
   };
@@ -597,11 +596,6 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
 
       setShowConfirmingModal(true);
       setShowCheckmark(false);
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setShowCheckmark(true);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setShowConfirmingModal(false);
-      setShowCheckmark(false);
 
       const payloadPago = {
         reserva_id: reserva_id,
@@ -620,15 +614,19 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         setMensajeReserva({ tipo: 'error', texto: dataPago.error || 'No se pudo procesar el pago.' });
         return;
       }
-      
+
+      setShowCheckmark(true);
       setMensajeReserva({ tipo: 'exito', texto: 'Reserva confirmada y pago realizado.' });
+      await new Promise((resolve) => setTimeout(resolve, 700));
       if (onReservaConfirmada) {
-        setTimeout(() => { onReservaConfirmada(); }, 2000);
+        onReservaConfirmada();
       }
     } catch (err) {
       console.error('Error al confirmar pago/reserva:', err);
       setMensajeReserva({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });
     } finally {
+      setShowConfirmingModal(false);
+      setShowCheckmark(false);
       setConfirmandoReserva(false);
     }
   };
