@@ -369,6 +369,16 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
           >
             Mis Reservas
           </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-semibold transition sm:px-6 ${
+              activeTab === 'profile'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Perfil de Usuario
+          </button>
         </div>
 
         {/* Tab: Buscar Vuelos */}
