@@ -87,6 +87,15 @@ const normalizeLast4 = (value?: string): string => {
   return /^\d{4}$/.test(text) ? text : '';
 };
 
+const escapeHtml = (value: string): string => {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
@@ -216,6 +225,98 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
     } finally {
       setLoadingAsientosModal(false);
     }
+  };
+
+  const handleImprimirTicket = async (reserva: Reserva) => {
+    const pagoConfirmado = String(reserva.pago_estado || '').toLowerCase() === 'confirmado';
+    if (reserva.estado !== 'confirmada' || !pagoConfirmado) return;
+
+    let asientos = asientosPorReserva[reserva.reserva_id] || [];
+    if (asientos.length === 0) {
+      try {
+        asientos = await cargarAsientosDeReserva(reserva.reserva_id);
+      } catch {
+        asientos = [];
+      }
+    }
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) return;
+
+    const asientosTexto = asientos.length > 0
+      ? asientos.map((a) => `${a.numero_pasajero}. ${a.asiento_codigo}`).join(' | ')
+      : 'No asignado';
+
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Ticket Reserva #${reserva.reserva_id}</title>
+    <style>
+      body { font-family: 'Segoe UI', Arial, sans-serif; margin: 24px; color: #0f172a; }
+      .ticket { border: 2px solid #cbd5e1; border-radius: 16px; padding: 24px; max-width: 820px; margin: 0 auto; }
+      h1 { margin: 0 0 6px 0; font-size: 24px; }
+      p.muted { margin: 0 0 20px 0; color: #475569; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+      .label { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .value { font-size: 16px; font-weight: 600; margin-top: 2px; }
+      .full { grid-column: 1 / -1; }
+      .footer { margin-top: 18px; font-size: 12px; color: #64748b; }
+      @media print { body { margin: 0; } .ticket { border-width: 1px; } }
+    </style>
+  </head>
+  <body>
+    <div class="ticket">
+      <h1>Aero G - Ticket de Vuelo</h1>
+      <p class="muted">Comprobante de reserva confirmada</p>
+      <div class="grid">
+        <div>
+          <div class="label">Reserva</div>
+          <div class="value">#${reserva.reserva_id}</div>
+        </div>
+        <div>
+          <div class="label">Vuelo</div>
+          <div class="value">${escapeHtml(reserva.codigo_vuelo)}</div>
+        </div>
+        <div>
+          <div class="label">Pasajero</div>
+          <div class="value">${escapeHtml(`${reserva.nombre} ${reserva.apellido}`)}</div>
+        </div>
+        <div>
+          <div class="label">Email</div>
+          <div class="value">${escapeHtml(reserva.email)}</div>
+        </div>
+        <div class="full">
+          <div class="label">Ruta</div>
+          <div class="value">${escapeHtml(reserva.origen_nombre)}, ${escapeHtml(reserva.provincia_origen)} -> ${escapeHtml(reserva.destino_nombre)}, ${escapeHtml(reserva.provincia_destino)}</div>
+        </div>
+        <div>
+          <div class="label">Salida</div>
+          <div class="value">${escapeHtml(formatDateTime(reserva.fecha_salida))}</div>
+        </div>
+        <div>
+          <div class="label">Llegada</div>
+          <div class="value">${escapeHtml(formatDateTime(reserva.fecha_llegada))}</div>
+        </div>
+        <div>
+          <div class="label">Asientos</div>
+          <div class="value">${escapeHtml(asientosTexto)}</div>
+        </div>
+        <div>
+          <div class="label">Pago</div>
+          <div class="value">${escapeHtml(String(reserva.pago_metodo || '-'))} - $${escapeHtml(formatCurrency(Number(reserva.pago_monto || getTotalBaseReserva(reserva))))}</div>
+        </div>
+      </div>
+      <div class="footer">Emitido: ${escapeHtml(formatDateTime(new Date().toISOString()))}</div>
+    </div>
+  </body>
+</html>`;
+
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
   };
   
   // Handler para abrir modal de pago
@@ -614,12 +715,22 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => handleCancelar(reserva.reserva_id)}
-                className="mt-4 rounded-full bg-red-600 px-8 py-3 text-sm font-semibold text-white hover:bg-red-700 md:absolute md:right-0 md:top-1/2 md:mt-0 md:-translate-y-1/2"
-              >
-                Cancelar
-              </button>
+              <div className="mt-4 flex flex-col gap-2 md:absolute md:right-0 md:top-1/2 md:mt-0 md:-translate-y-1/2 md:items-end">
+                <button
+                  onClick={() => handleCancelar(reserva.reserva_id)}
+                  className="rounded-full bg-red-600 px-8 py-3 text-sm font-semibold text-white hover:bg-red-700"
+                >
+                  Cancelar
+                </button>
+                {String(reserva.pago_estado || '').toLowerCase() === 'confirmado' && (
+                  <button
+                    onClick={() => handleImprimirTicket(reserva)}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Imprimir ticket (PDF)
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Pagar Ahora */}

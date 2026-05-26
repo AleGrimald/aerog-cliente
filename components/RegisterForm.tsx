@@ -14,6 +14,7 @@ export default function RegisterForm({ onRegisterSuccess }: RegisterFormProps) {
     email: '',
     telefono: '',
     direccion: '',
+    dni: '',
     fecha_nacimiento: '',
     password: '',
     confirmPassword: '',
@@ -49,6 +50,8 @@ export default function RegisterForm({ onRegisterSuccess }: RegisterFormProps) {
       filtered = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
     } else if (name === 'telefono') {
       filtered = value.replace(/[^0-9]/g, '');
+    } else if (name === 'dni') {
+      filtered = value.replace(/[^0-9]/g, '').slice(0, 9);
     } else if (name === 'direccion') {
       filtered = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,#\-]/g, '');
     } else if (name === 'password' || name === 'confirmPassword') {
@@ -83,6 +86,9 @@ export default function RegisterForm({ onRegisterSuccess }: RegisterFormProps) {
     if (!formData.telefono || !soloNumeros.test(formData.telefono) || formData.telefono.length < 7 || formData.telefono.length > 15) {
       setError('El teléfono debe contener solo dígitos (7-15).'); return;
     }
+    if (!formData.dni || !soloNumeros.test(formData.dni) || formData.dni.length < 7 || formData.dni.length > 9) {
+      setError('El DNI debe contener solo dígitos (7-9).'); return;
+    }
     if (!formData.direccion.trim() || !direccionValida.test(formData.direccion) || formData.direccion.trim().length < 5) {
       setError('La dirección contiene caracteres no permitidos o es muy corta (mín. 5).'); return;
     }
@@ -110,6 +116,7 @@ export default function RegisterForm({ onRegisterSuccess }: RegisterFormProps) {
           email: formData.email,
           telefono: formData.telefono,
           direccion: formData.direccion,
+          dni: formData.dni,
           fecha_nacimiento: formData.fecha_nacimiento || null,
           password: formData.password,
         }),
@@ -125,6 +132,7 @@ export default function RegisterForm({ onRegisterSuccess }: RegisterFormProps) {
           email: '',
           telefono: '',
           direccion: '',
+          dni: '',
           fecha_nacimiento: '',
           password: '',
           confirmPassword: '',
@@ -239,6 +247,23 @@ export default function RegisterForm({ onRegisterSuccess }: RegisterFormProps) {
           required
           className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Av. Siempre Viva 123"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="dni" className="block text-sm font-medium text-gray-700 mb-2">
+          DNI
+        </label>
+        <input
+          id="dni"
+          type="text"
+          name="dni"
+          value={formData.dni}
+          onChange={handleChange}
+          required
+          maxLength={9}
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="12345678"
         />
       </div>
 

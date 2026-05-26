@@ -8,6 +8,7 @@ interface Usuario {
   nombre: string;
   apellido: string;
   email: string;
+  dni?: string;
   telefono?: string;
   direccion?: string;
   fecha_nacimiento?: string;

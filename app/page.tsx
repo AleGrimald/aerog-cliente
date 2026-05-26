@@ -12,6 +12,7 @@ interface Usuario {
   apellido: string;
   email: string;
   es_admin?: boolean;
+  dni?: string;
   telefono?: string;
   direccion?: string;
   fecha_nacimiento?: string;

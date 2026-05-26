@@ -42,6 +42,8 @@ interface UsuarioRegistrado {
   nombre: string;
   apellido: string;
   email: string;
+  activo?: number | boolean;
+  dni?: string;
   telefono?: string;
   direccion?: string;
   fecha_nacimiento?: string;
@@ -89,8 +91,23 @@ interface UsuarioForm {
   email: string;
   telefono: string;
   direccion: string;
+  dni: string;
   fecha_nacimiento: string;
   password: string;
+}
+
+type ConfirmModalAction =
+  | { type: 'eliminar-vuelo'; vueloId: number }
+  | { type: 'toggle-usuario'; usuarioId: number; activo: number | boolean | undefined }
+  | { type: 'eliminar-reservas' };
+
+interface ConfirmModalState {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone: 'danger' | 'success';
+  action: ConfirmModalAction | null;
 }
 
 const initialVueloForm: VueloForm = {
@@ -110,6 +127,7 @@ const initialUsuarioForm: UsuarioForm = {
   email: '',
   telefono: '',
   direccion: '',
+  dni: '',
   fecha_nacimiento: '',
   password: '',
 };
@@ -164,6 +182,17 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
   const [editandoUsuarioId, setEditandoUsuarioId] = useState<number | null>(null);
   const [usuarioForm, setUsuarioForm] = useState<UsuarioForm>(initialUsuarioForm);
   const [busquedaUsuarios, setBusquedaUsuarios] = useState('');
+  const [reservasSeleccionadas, setReservasSeleccionadas] = useState<number[]>([]);
+  const [eliminandoReservasSeleccionadas, setEliminandoReservasSeleccionadas] = useState(false);
+  const [confirmandoAccion, setConfirmandoAccion] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
+    open: false,
+    title: '',
+    message: '',
+    confirmLabel: '',
+    tone: 'danger',
+    action: null,
+  });
 
   const aeropuertoNombre = useMemo(() => {
     const map = new Map<number, string>();
@@ -187,19 +216,23 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
   };
 
   const vuelosFiltrados = useMemo(() => {
+    if (!Array.isArray(vuelos)) return [];
     const q = busquedaVuelos.trim().toLowerCase();
     if (!q) return vuelos;
     return vuelos.filter((v) => {
-      const texto = `${v.codigo_vuelo} ${v.origen_nombre} ${v.destino_nombre} ${formatDateTime(v.fecha_salida)} ${formatDateTime(v.fecha_llegada)}`.toLowerCase();
+      if (!v || typeof v !== 'object') return false;
+      const texto = `${v.codigo_vuelo || ''} ${v.origen_nombre || ''} ${v.destino_nombre || ''} ${formatDateTime(v.fecha_salida)} ${formatDateTime(v.fecha_llegada)}`.toLowerCase();
       return texto.includes(q);
     });
   }, [vuelos, busquedaVuelos]);
 
   const usuariosFiltrados = useMemo(() => {
+    if (!Array.isArray(usuarios)) return [];
     const q = busquedaUsuarios.trim().toLowerCase();
     if (!q) return usuarios;
     return usuarios.filter((u) => {
-      const texto = `${u.nombre || ''} ${u.apellido || ''} ${u.email || ''} ${u.telefono || ''}`.toLowerCase();
+      if (!u || typeof u !== 'object') return false;
+      const texto = `${u.nombre || ''} ${u.apellido || ''} ${u.email || ''} ${u.telefono || ''} ${u.dni || ''}`.toLowerCase();
       return texto.includes(q);
     });
   }, [usuarios, busquedaUsuarios]);
@@ -260,6 +293,10 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
     return () => window.clearTimeout(timer);
   }, [activeTab, editandoVueloId]);
+
+  useEffect(() => {
+    setReservasSeleccionadas((prev) => prev.filter((id) => reservas.some((r) => r?.reserva_id === id)));
+  }, [reservas]);
 
   const handleEditVuelo = (vuelo: Vuelo) => {
     limpiarMensajes();
@@ -327,11 +364,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     }
   };
 
-  const handleEliminarVuelo = async (vueloId: number) => {
-    limpiarMensajes();
-    const confirmar = window.confirm('¿Seguro que deseas eliminar este vuelo?');
-    if (!confirmar) return;
-
+  const ejecutarEliminarVuelo = async (vueloId: number) => {
     setEliminandoVueloId(vueloId);
     try {
       const response = await fetch(`${API_BASE_URL}/admin/vuelos/${vueloId}`, { method: 'DELETE' });
@@ -352,6 +385,18 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     }
   };
 
+  const handleEliminarVuelo = (vueloId: number) => {
+    limpiarMensajes();
+    setConfirmModal({
+      open: true,
+      title: 'Eliminar vuelo',
+      message: '¿Seguro que deseas eliminar este vuelo?',
+      confirmLabel: 'Si, eliminar',
+      tone: 'danger',
+      action: { type: 'eliminar-vuelo', vueloId },
+    });
+  };
+
   const handleEditUsuario = (u: UsuarioRegistrado) => {
     limpiarMensajes();
     setEditandoUsuarioId(u.usuario_id);
@@ -361,6 +406,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
       email: u.email || '',
       telefono: u.telefono || '',
       direccion: u.direccion || '',
+      dni: u.dni || '',
       fecha_nacimiento: (u.fecha_nacimiento || '').slice(0, 10),
       password: '',
     });
@@ -377,11 +423,12 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
       email: usuarioForm.email.trim().toLowerCase(),
       telefono: usuarioForm.telefono.trim(),
       direccion: usuarioForm.direccion.trim(),
+      dni: usuarioForm.dni.trim(),
       fecha_nacimiento: usuarioForm.fecha_nacimiento,
       password: usuarioForm.password,
     };
 
-    if (!payload.nombre || !payload.apellido || !payload.email || !payload.telefono || !payload.direccion || !payload.fecha_nacimiento) {
+    if (!payload.nombre || !payload.apellido || !payload.email || !payload.telefono || !payload.direccion || !payload.dni || !payload.fecha_nacimiento) {
       setError('Completa los campos obligatorios del usuario.');
       return;
     }
@@ -421,31 +468,160 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     }
   };
 
-  const handleEliminarUsuario = async (usuarioId: number) => {
-    limpiarMensajes();
-    const confirmar = window.confirm('¿Seguro que deseas eliminar este usuario?');
-    if (!confirmar) return;
-
+  const ejecutarToggleUsuario = async (usuarioId: number, activo: number | boolean | undefined) => {
+    const estaActivo = Number(activo ?? 1) === 1;
     setEliminandoUsuarioId(usuarioId);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/usuarios/${usuarioId}`, { method: 'DELETE' });
+      const response = await fetch(
+        estaActivo
+          ? `${API_BASE_URL}/admin/usuarios/${usuarioId}`
+          : `${API_BASE_URL}/admin/usuarios/${usuarioId}/activar`,
+        { method: estaActivo ? 'DELETE' : 'PATCH' }
+      );
       const data = await response.json();
       if (!response.ok) {
-        setError(data.error || 'No se pudo eliminar el usuario.');
+        setError(data.error || (estaActivo ? 'No se pudo desactivar el usuario.' : 'No se pudo activar el usuario.'));
         return;
       }
 
-      setMensaje('Usuario eliminado correctamente.');
+      setMensaje(estaActivo ? 'Usuario desactivado correctamente.' : 'Usuario activado correctamente.');
       if (editandoUsuarioId === usuarioId) {
         resetUsuarioForm();
       }
       await cargarTodo();
     } catch {
-      setError('No se pudo conectar con el servidor para eliminar el usuario.');
+      setError(estaActivo
+        ? 'No se pudo conectar con el servidor para desactivar el usuario.'
+        : 'No se pudo conectar con el servidor para activar el usuario.');
     } finally {
       setEliminandoUsuarioId(null);
     }
   };
+
+  const handleEliminarUsuario = (usuarioId: number, activo: number | boolean | undefined) => {
+    limpiarMensajes();
+    const estaActivo = Number(activo ?? 1) === 1;
+    setConfirmModal({
+      open: true,
+      title: estaActivo ? 'Desactivar usuario' : 'Activar usuario',
+      message: estaActivo
+        ? '¿Seguro que deseas desactivar este usuario?'
+        : '¿Seguro que deseas activar nuevamente este usuario?',
+      confirmLabel: estaActivo ? 'Si, desactivar' : 'Si, activar',
+      tone: estaActivo ? 'danger' : 'success',
+      action: { type: 'toggle-usuario', usuarioId, activo },
+    });
+  };
+
+  const toggleSeleccionReserva = (reservaId: number) => {
+    setReservasSeleccionadas((prev) => (
+      prev.includes(reservaId)
+        ? prev.filter((id) => id !== reservaId)
+        : [...prev, reservaId]
+    ));
+  };
+
+  const toggleSeleccionTodasReservas = () => {
+    const reservasIds = reservas
+      .filter((r) => r && typeof r === 'object' && r.reserva_id)
+      .map((r) => r.reserva_id);
+
+    setReservasSeleccionadas((prev) => (
+      reservasIds.length > 0 && reservasIds.every((id) => prev.includes(id))
+        ? []
+        : reservasIds
+    ));
+  };
+
+  const ejecutarEliminarReservasSeleccionadas = async () => {
+    setEliminandoReservasSeleccionadas(true);
+    try {
+      const resultados = await Promise.all(
+        reservasSeleccionadas.map(async (reservaId) => {
+          try {
+            const response = await fetch(`${API_BASE_URL}/cancelar-reserva/${reservaId}`, { method: 'DELETE' });
+            const data = await response.json();
+            if (!response.ok) {
+              return { ok: false, reservaId, error: data.error || 'No se pudo eliminar la reserva.' };
+            }
+            return { ok: true, reservaId };
+          } catch {
+            return { ok: false, reservaId, error: 'No se pudo conectar con el servidor para eliminar una reserva.' };
+          }
+        })
+      );
+
+      const exitosas = resultados.filter((r) => r.ok).map((r) => r.reservaId);
+      const fallidas = resultados.filter((r) => !r.ok);
+
+      if (exitosas.length > 0) {
+        setReservas((prev) => prev.filter((r) => !exitosas.includes(r.reserva_id)));
+        setReservasSeleccionadas((prev) => prev.filter((id) => !exitosas.includes(id)));
+      }
+
+      if (fallidas.length > 0) {
+        setError(`Se eliminaron ${exitosas.length} reserva(s). ${fallidas.length} no pudieron eliminarse.`);
+      } else {
+        setMensaje(`${exitosas.length} reserva(s) eliminada(s) correctamente.`);
+      }
+    } finally {
+      setEliminandoReservasSeleccionadas(false);
+    }
+  };
+
+  const handleEliminarReservasSeleccionadas = () => {
+    limpiarMensajes();
+    if (reservasSeleccionadas.length === 0) {
+      setError('Selecciona al menos una reserva para eliminar.');
+      return;
+    }
+
+    setConfirmModal({
+      open: true,
+      title: 'Eliminar reservas',
+      message: `¿Seguro que deseas eliminar ${reservasSeleccionadas.length} reserva(s) seleccionada(s)?`,
+      confirmLabel: 'Si, eliminar',
+      tone: 'danger',
+      action: { type: 'eliminar-reservas' },
+    });
+  };
+
+  const cerrarConfirmModal = () => {
+    if (confirmandoAccion) return;
+    setConfirmModal((prev) => ({
+      ...prev,
+      open: false,
+      action: null,
+    }));
+  };
+
+  const confirmarAccionModal = async () => {
+    if (!confirmModal.action || confirmandoAccion) return;
+
+    setConfirmandoAccion(true);
+    try {
+      const action = confirmModal.action;
+      if (action.type === 'eliminar-vuelo') {
+        await ejecutarEliminarVuelo(action.vueloId);
+      } else if (action.type === 'toggle-usuario') {
+        await ejecutarToggleUsuario(action.usuarioId, action.activo);
+      } else if (action.type === 'eliminar-reservas') {
+        await ejecutarEliminarReservasSeleccionadas();
+      }
+    } finally {
+      setConfirmandoAccion(false);
+      setConfirmModal((prev) => ({
+        ...prev,
+        open: false,
+        action: null,
+      }));
+    }
+  };
+
+  const reservasIds = reservas
+    .filter((r) => r && typeof r === 'object' && r.reserva_id)
+    .map((r) => r.reserva_id);
+  const todasReservasSeleccionadas = reservasIds.length > 0 && reservasIds.every((id) => reservasSeleccionadas.includes(id));
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -503,7 +679,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
         {loading && <div className="rounded-2xl bg-white p-6 shadow">Cargando datos de administración...</div>}
 
-        {!loading && activeTab === 'vuelos' && (
+        {!loading && activeTab === 'vuelos' && aeropuertos.length > 0 && (
           <section className="space-y-6">
             <div ref={vueloFormContainerRef} className="rounded-3xl bg-white p-6 shadow">
               <h2 className="text-2xl font-bold text-slate-900">{editandoVueloId ? 'Editar vuelo' : 'Crear vuelo'}</h2>
@@ -540,8 +716,8 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                     required
                   >
                     <option value="">Selecciona origen</option>
-                    {aeropuertos.map((a) => (
-                      <option key={a.aeropuerto_id} value={a.aeropuerto_id}>
+                    {aeropuertos.map((a, idx) => (
+                      <option key={`origen-${idx}-${a.aeropuerto_id}`} value={a.aeropuerto_id}>
                         {a.nombre} ({a.codigo_IATA || 'S/C'})
                       </option>
                     ))}
@@ -556,8 +732,8 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                     required
                   >
                     <option value="">Selecciona destino</option>
-                    {aeropuertos.map((a) => (
-                      <option key={a.aeropuerto_id} value={a.aeropuerto_id}>
+                    {aeropuertos.map((a, idx) => (
+                      <option key={`destino-${idx}-${a.aeropuerto_id}`} value={a.aeropuerto_id}>
                         {a.nombre} ({a.codigo_IATA || 'S/C'})
                       </option>
                     ))}
@@ -652,35 +828,46 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                   </tr>
                 </thead>
                 <tbody>
-                  {vuelosFiltrados.map((v) => (
-                    <tr key={v.vuelo_id} className="border-t border-slate-100">
-                      <td className="px-3 py-2 font-semibold">{v.codigo_vuelo}</td>
-                      <td className="px-3 py-2">{v.origen_nombre}</td>
-                      <td className="px-3 py-2">{v.destino_nombre}</td>
-                      <td className="px-3 py-2">{formatDateTime(v.fecha_salida)}</td>
-                      <td className="px-3 py-2">{formatDateTime(v.fecha_llegada)}</td>
-                      <td className="px-3 py-2">{v.capacidad_total}</td>
-                      <td className="px-3 py-2">{v.asientos_disponibles}</td>
-                      <td className="px-3 py-2">${Number(v.precio_base).toFixed(2)}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditVuelo(v)}
-                            className="rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleEliminarVuelo(v.vuelo_id)}
-                            disabled={eliminandoVueloId === v.vuelo_id}
-                            className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                          >
-                            {eliminandoVueloId === v.vuelo_id ? 'Eliminando...' : 'Eliminar'}
-                          </button>
-                        </div>
+                  {vuelosFiltrados && vuelosFiltrados.length > 0 ? (
+                    vuelosFiltrados.map((v) => {
+                      if (!v || typeof v !== 'object') return null;
+                      return (
+                        <tr key={v.vuelo_id} className="border-t border-slate-100">
+                          <td className="px-3 py-2 font-semibold">{v.codigo_vuelo || '-'}</td>
+                          <td className="px-3 py-2">{v.origen_nombre || '-'}</td>
+                          <td className="px-3 py-2">{v.destino_nombre || '-'}</td>
+                          <td className="px-3 py-2">{formatDateTime(v.fecha_salida)}</td>
+                          <td className="px-3 py-2">{formatDateTime(v.fecha_llegada)}</td>
+                          <td className="px-3 py-2">{v.capacidad_total || '-'}</td>
+                          <td className="px-3 py-2">{v.asientos_disponibles || '-'}</td>
+                          <td className="px-3 py-2">${Number(v.precio_base || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditVuelo(v)}
+                                className="rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleEliminarVuelo(v.vuelo_id)}
+                                disabled={eliminandoVueloId === v.vuelo_id}
+                                className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                              >
+                                {eliminandoVueloId === v.vuelo_id ? 'Eliminando...' : 'Eliminar'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="px-3 py-2 text-center text-slate-500">
+                        No hay vuelos
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -728,6 +915,17 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                     type="text"
                     value={usuarioForm.telefono}
                     onChange={(e) => setUsuarioForm((prev) => ({ ...prev, telefono: e.target.value.replace(/[^0-9]/g, '') }))}
+                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">DNI</label>
+                  <input
+                    type="text"
+                    value={usuarioForm.dni}
+                    maxLength={9}
+                    onChange={(e) => setUsuarioForm((prev) => ({ ...prev, dni: e.target.value.replace(/[^0-9]/g, '').slice(0, 9) }))}
                     className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3"
                     required
                   />
@@ -791,7 +989,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                   type="text"
                   value={busquedaUsuarios}
                   onChange={(e) => setBusquedaUsuarios(e.target.value)}
-                  placeholder="Buscar por nombre, apellido, usuario(email) o teléfono"
+                  placeholder="Buscar por nombre, apellido, usuario(email), teléfono o DNI"
                   className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm md:w-96"
                 />
               </div>
@@ -801,38 +999,65 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                     <th className="px-3 py-2">ID</th>
                     <th className="px-3 py-2">Nombre</th>
                     <th className="px-3 py-2">Usuario</th>
+                    <th className="px-3 py-2">DNI</th>
+                    <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Teléfono</th>
                     <th className="px-3 py-2">Registro</th>
                     <th className="px-3 py-2">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {usuariosFiltrados.map((u) => (
-                    <tr key={u.usuario_id} className="border-t border-slate-100">
-                      <td className="px-3 py-2">{u.usuario_id}</td>
-                      <td className="px-3 py-2">{u.nombre} {u.apellido}</td>
-                      <td className="px-3 py-2">{u.email}</td>
-                      <td className="px-3 py-2">{u.telefono || '-'}</td>
-                      <td className="px-3 py-2">{formatDateTime(u.fecha_registro)}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditUsuario(u)}
-                            className="rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleEliminarUsuario(u.usuario_id)}
-                            disabled={eliminandoUsuarioId === u.usuario_id}
-                            className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                          >
-                            {eliminandoUsuarioId === u.usuario_id ? 'Eliminando...' : 'Eliminar'}
-                          </button>
-                        </div>
+                  {usuariosFiltrados && usuariosFiltrados.length > 0 ? (
+                    usuariosFiltrados.map((u) => {
+                      if (!u || typeof u !== 'object') return null;
+                      return (
+                        <tr key={u.usuario_id} className="border-t border-slate-100">
+                          <td className="px-3 py-2">{u.usuario_id || '-'}</td>
+                          <td className="px-3 py-2">{(u.nombre || '') + ' ' + (u.apellido || '')}</td>
+                          <td className="px-3 py-2">{u.email || '-'}</td>
+                          <td className="px-3 py-2">{u.dni || '-'}</td>
+                          <td className="px-3 py-2">
+                            {Number(u.activo ?? 1) === 1 ? (
+                              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">Activo</span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-700">Inactivo</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">{u.telefono || '-'}</td>
+                          <td className="px-3 py-2">{formatDateTime(u.fecha_registro)}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditUsuario(u)}
+                                className="rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleEliminarUsuario(u.usuario_id, u.activo)}
+                                disabled={eliminandoUsuarioId === u.usuario_id}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold text-white disabled:opacity-60 ${
+                                  Number(u.activo ?? 1) === 1
+                                    ? 'bg-red-600 hover:bg-red-700'
+                                    : 'bg-emerald-600 hover:bg-emerald-700'
+                                }`}
+                              >
+                                {eliminandoUsuarioId === u.usuario_id
+                                  ? (Number(u.activo ?? 1) === 1 ? 'Desactivando...' : 'Activando...')
+                                  : (Number(u.activo ?? 1) === 1 ? 'Desactivar' : 'Activar')}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="px-3 py-2 text-center text-slate-500">
+                        No hay usuarios
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -841,10 +1066,28 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
         {!loading && activeTab === 'reservas' && (
           <section className="overflow-x-auto rounded-3xl bg-white p-4 shadow">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">Pasajes reservados ({reservas.length})</h2>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl font-bold text-slate-900">Pasajes reservados ({Array.isArray(reservas) ? reservas.length : 0})</h2>
+              <button
+                type="button"
+                onClick={handleEliminarReservasSeleccionadas}
+                disabled={reservasSeleccionadas.length === 0 || eliminandoReservasSeleccionadas}
+                className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {eliminandoReservasSeleccionadas ? 'Eliminando...' : `Eliminar seleccionados (${reservasSeleccionadas.length})`}
+              </button>
+            </div>
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-600">
+                  <th className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={todasReservasSeleccionadas}
+                      onChange={toggleSeleccionTodasReservas}
+                      aria-label="Seleccionar todas las reservas"
+                    />
+                  </th>
                   <th className="px-3 py-2">Reserva</th>
                   <th className="px-3 py-2">Pasajero</th>
                   <th className="px-3 py-2">Vuelo</th>
@@ -855,17 +1098,36 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                 </tr>
               </thead>
               <tbody>
-                {reservas.map((r) => (
-                  <tr key={r.reserva_id} className="border-t border-slate-100">
-                    <td className="px-3 py-2">#{r.reserva_id}</td>
-                    <td className="px-3 py-2">{r.pasajero}</td>
-                    <td className="px-3 py-2">{r.codigo_vuelo}</td>
-                    <td className="px-3 py-2">{r.origen} → {r.destino}</td>
-                    <td className="px-3 py-2">{r.estado}</td>
-                    <td className="px-3 py-2">{r.pago_monto ? `$${Number(r.pago_monto).toFixed(2)} (${r.pago_metodo || '-'})` : 'Sin pago'}</td>
-                    <td className="px-3 py-2">{formatDateTime(r.fecha_reserva)}</td>
+                {Array.isArray(reservas) && reservas.length > 0 ? (
+                  reservas.map((r) => {
+                    if (!r || typeof r !== 'object' || !r.reserva_id) return null;
+                    return (
+                      <tr key={r.reserva_id} className="border-t border-slate-100">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={reservasSeleccionadas.includes(r.reserva_id)}
+                            onChange={() => toggleSeleccionReserva(r.reserva_id)}
+                            aria-label={`Seleccionar reserva ${r.reserva_id}`}
+                          />
+                        </td>
+                        <td className="px-3 py-2">#{r.reserva_id || '-'}</td>
+                        <td className="px-3 py-2">{r.pasajero || '-'}</td>
+                        <td className="px-3 py-2">{r.codigo_vuelo || '-'}</td>
+                        <td className="px-3 py-2">{(r.origen || '-')} → {(r.destino || '-')}</td>
+                        <td className="px-3 py-2">{r.estado || '-'}</td>
+                        <td className="px-3 py-2">{r.pago_monto ? `$${Number(r.pago_monto).toFixed(2)} (${r.pago_metodo || '-'})` : 'Sin pago'}</td>
+                        <td className="px-3 py-2">{formatDateTime(r.fecha_reserva)}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-2 text-center text-slate-500">
+                      No hay reservas registradas
+                    </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </section>
@@ -893,39 +1155,104 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
             <div className="grid gap-6 md:grid-cols-2">
               <div className="rounded-3xl bg-white p-6 shadow">
                 <h3 className="mb-4 text-xl font-semibold text-slate-900">Recaudación por mes</h3>
-                {recaudacionMensual.length === 0 ? (
+                {!Array.isArray(recaudacionMensual) || recaudacionMensual.length === 0 ? (
                   <p className="text-sm text-slate-600">No hay pagos confirmados para mostrar.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {recaudacionMensual.map((item) => (
-                      <li key={item.mes} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2 text-sm">
-                        <span>{item.mes}</span>
-                        <span className="font-semibold text-slate-900">${Number(item.total).toFixed(2)}</span>
-                      </li>
-                    ))}
+                    {recaudacionMensual.map((item, itemIdx) => {
+                      if (!item || typeof item !== 'object') return null;
+                      return (
+                        <li key={`recaudacion-${itemIdx}-${item.mes || 'unknown'}`} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2 text-sm">
+                          <span>{item.mes || '-'}</span>
+                          <span className="font-semibold text-slate-900">${Number(item.total || 0).toFixed(2)}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
 
               <div className="rounded-3xl bg-white p-6 shadow">
                 <h3 className="mb-4 text-xl font-semibold text-slate-900">Destinos más pedidos</h3>
-                {destinosMasPedidos.length === 0 ? (
+                {!destinosMasPedidos || destinosMasPedidos.length === 0 ? (
                   <p className="text-sm text-slate-600">No hay reservas suficientes para calcular destinos.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {destinosMasPedidos.map((d, index) => (
-                      <li key={`${d.destino}-${index}`} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2 text-sm">
-                        <span>{d.destino}, {d.provincia}</span>
-                        <span className="font-semibold text-slate-900">{d.cantidad}</span>
-                      </li>
-                    ))}
+                    {destinosMasPedidos.map((d, destIdx) => {
+                      if (!d || typeof d !== 'object') return null;
+                      return (
+                        <li key={`destino-${destIdx}-${d.destino || 'unknown'}-${d.provincia || 'unknown'}`} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2 text-sm">
+                          <span>{d.destino || '-'}, {d.provincia || '-'}</span>
+                          <span className="font-semibold text-slate-900">{d.cantidad || 0}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
             </div>
           </section>
         )}
+
+        {confirmModal.open && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            style={{ animation: 'adminModalOverlayIn 160ms ease-out' }}
+          >
+            <div
+              className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl"
+              style={{ animation: 'adminModalContentIn 200ms ease-out' }}
+            >
+              <h3 className="mb-4 text-xl font-bold text-slate-900">{confirmModal.title}</h3>
+              <p className="mb-6 text-slate-700">{confirmModal.message}</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={cerrarConfirmModal}
+                  disabled={confirmandoAccion}
+                  className="rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarAccionModal}
+                  disabled={confirmandoAccion}
+                  className={`rounded-full px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${
+                    confirmModal.tone === 'success'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {confirmandoAccion ? 'Procesando...' : confirmModal.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      <style jsx global>{`
+        @keyframes adminModalOverlayIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes adminModalContentIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -25,6 +25,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
     email: usuario.email || '',
     telefono: usuario.telefono || '',
     direccion: usuario.direccion || '',
+    dni: usuario.dni || '',
   });
 
   const [tarjeta, setTarjeta] = useState({
@@ -61,6 +62,8 @@ export default function UserProfile({ usuario }: UserProfileProps) {
       filtered = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
     } else if (campo === 'telefono') {
       filtered = valor.replace(/[^0-9]/g, '');
+    } else if (campo === 'dni') {
+      filtered = valor.replace(/[^0-9]/g, '').slice(0, 9);
     } else if (campo === 'direccion') {
       filtered = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,#\-]/g, '');
     }
@@ -107,6 +110,9 @@ export default function UserProfile({ usuario }: UserProfileProps) {
 
     if (!datosEdit.telefono || !soloNumeros.test(datosEdit.telefono) || datosEdit.telefono.length < 7 || datosEdit.telefono.length > 15)
       nuevosErrores.telefono = 'El teléfono debe contener solo dígitos (7-15).';
+
+    if (!datosEdit.dni || !soloNumeros.test(datosEdit.dni) || datosEdit.dni.length < 7 || datosEdit.dni.length > 9)
+      nuevosErrores.dni = 'El DNI debe contener solo dígitos (7-9).';
 
     if (!datosEdit.direccion.trim() || datosEdit.direccion.trim().length < 5)
       nuevosErrores.direccion = 'La dirección debe tener al menos 5 caracteres.';
@@ -287,6 +293,11 @@ export default function UserProfile({ usuario }: UserProfileProps) {
                 <input type="text" value={datosEdit.telefono} onChange={(e) => { handleCambioEdit('telefono', e.target.value); setErroresEdit((p) => ({ ...p, telefono: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.telefono ? 'border-red-500' : 'border-slate-300'}`} />
                 {erroresEdit.telefono && <p className="mt-1 text-sm text-red-600">{erroresEdit.telefono}</p>}
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">DNI</label>
+                <input type="text" value={datosEdit.dni} maxLength={9} onChange={(e) => { handleCambioEdit('dni', e.target.value); setErroresEdit((p) => ({ ...p, dni: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.dni ? 'border-red-500' : 'border-slate-300'}`} />
+                {erroresEdit.dni && <p className="mt-1 text-sm text-red-600">{erroresEdit.dni}</p>}
+              </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700">Dirección</label>
                 <input type="text" value={datosEdit.direccion} onChange={(e) => { handleCambioEdit('direccion', e.target.value); setErroresEdit((p) => ({ ...p, direccion: '' })); }} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 focus:border-blue-500 focus:outline-none ${erroresEdit.direccion ? 'border-red-500' : 'border-slate-300'}`} />
@@ -305,6 +316,7 @@ export default function UserProfile({ usuario }: UserProfileProps) {
             <div><p className="text-sm font-medium text-slate-600">Apellido</p><p className="text-lg font-semibold text-slate-900">{datosEdit.apellido}</p></div>
             <div><p className="text-sm font-medium text-slate-600">Email</p><p className="text-lg font-semibold text-slate-900">{datosEdit.email}</p></div>
             <div><p className="text-sm font-medium text-slate-600">Teléfono</p><p className="text-lg font-semibold text-slate-900">{datosEdit.telefono}</p></div>
+            <div><p className="text-sm font-medium text-slate-600">DNI</p><p className="text-lg font-semibold text-slate-900">{datosEdit.dni}</p></div>
             <div className="md:col-span-2"><p className="text-sm font-medium text-slate-600">Dirección</p><p className="text-lg font-semibold text-slate-900">{datosEdit.direccion}</p></div>
           </div>
         )}
