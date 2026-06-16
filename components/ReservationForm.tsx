@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '@/constants/api';
+import PaymentMethodModal from '@/components/PaymentMethodModal';
 
 interface DatosTitular {
   nombre: string;
@@ -75,6 +76,11 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
   const [verificandoQr, setVerificandoQr] = useState(false);
   const [cvvPago, setCvvPago] = useState('');
   const [cvvError, setCvvError] = useState('');
+  const [agregarTarjetaModal, setAgregarTarjetaModal] = useState(false);
+  const [tarjetaNueva, setTarjetaNueva] = useState({ numero: '', titular: '', vencimiento: '' });
+  const [erroresTarjetaNueva, setErroresTarjetaNueva] = useState<Record<string, string>>({});
+  const [puntosDisponibles, setPuntosDisponibles] = useState(0);
+  const [puntosACanjear, setPuntosACanjear] = useState(0);
   const [nuevoPasajero, setNuevoPasajero] = useState<NuevoPasajeroForm>({
     nombre: '',
     apellido: '',
@@ -156,7 +162,9 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     if (tipoPago === 'credito' && cuotas > 1) {
       interes = 0.05 * (cuotas - 1);
     }
-    const total = Math.round((subtotal * (1 + interes)) * 100) / 100;
+    const totalSinDescuento = Math.round((subtotal * (1 + interes)) * 100) / 100;
+    const puntosAplicables = Math.max(0, Math.min(puntosACanjear, puntosDisponibles, Math.floor(totalSinDescuento)));
+    const total = Math.round(Math.max(0, totalSinDescuento - puntosAplicables) * 100) / 100;
     const montoPorCuota = Math.round((total / cuotas) * 100) / 100;
     return {
       subtotal,
@@ -310,19 +318,46 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     }
   };
 
+  const cargarTarjetas = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/tarjeta-usuario/${usuario.usuario_id}`);
+      const data = await response.json();
+      if (response.ok && Array.isArray(data.tarjetas)) {
+        setTarjetasGuardadas(data.tarjetas);
+      }
+    } catch {}
+  };
+
+  const cargarPuntos = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/perfil-puntos/${usuario.usuario_id}`);
+      const data = await response.json();
+      if (response.ok) {
+        const disponibles = Math.max(0, Number(data.puntos_disponibles || 0));
+        setPuntosDisponibles(disponibles);
+        setPuntosACanjear((prev) => Math.min(prev, disponibles));
+      }
+    } catch {}
+  };
+
   // Cargar tarjetas guardadas al montar
   useEffect(() => {
-    const cargarTarjetas = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/tarjeta-usuario/${usuario.usuario_id}`);
-        const data = await response.json();
-        if (response.ok && Array.isArray(data.tarjetas)) {
-          setTarjetasGuardadas(data.tarjetas);
-        }
-      } catch {}
-    };
     cargarTarjetas();
   }, [usuario.usuario_id]);
+
+  useEffect(() => {
+    if (showFormaPagoModal) {
+      cargarPuntos();
+    }
+
+    if (!showFormaPagoModal) {
+      setAgregarTarjetaModal(false);
+      setTarjetaNueva({ numero: '', titular: '', vencimiento: '' });
+      setErroresTarjetaNueva({});
+      setPuntosDisponibles(0);
+      setPuntosACanjear(0);
+    }
+  }, [showFormaPagoModal]);
 
   // Paso 1: Modal de confirmación de pago
   const handleConfirmar = () => {
@@ -456,6 +491,80 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     setCuotas(n);
   };
 
+  const handleCambioTarjetaNueva = (campo: 'numero' | 'titular' | 'vencimiento', valor: string) => {
+    let filtered = valor;
+    if (campo === 'numero') {
+      filtered = valor.replace(/[^0-9\s]/g, '');
+    } else if (campo === 'titular') {
+      filtered = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+    } else if (campo === 'vencimiento') {
+      const soloNumeros = valor.replace(/[^0-9]/g, '').slice(0, 4);
+      if (soloNumeros.length <= 2) {
+        filtered = soloNumeros;
+      } else {
+        filtered = `${soloNumeros.slice(0, 2)}/${soloNumeros.slice(2)}`;
+      }
+    }
+    setTarjetaNueva((prev) => ({ ...prev, [campo]: filtered }));
+  };
+
+  const handleGuardarTarjetaNueva = async () => {
+    const nuevosErrores: Record<string, string> = {};
+    const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
+    const vencimientoValido = /^\d{2}\/\d{2}$/;
+
+    if (!tarjetaNueva.numero.replace(/\s/g, '')) {
+      nuevosErrores.numero = 'Ingresa el numero de tarjeta.';
+    } else if (!/^\d{13,19}$/.test(tarjetaNueva.numero.replace(/\s/g, ''))) {
+      nuevosErrores.numero = 'El numero de tarjeta debe tener 13-19 digitos.';
+    }
+
+    if (!tarjetaNueva.titular.trim()) {
+      nuevosErrores.titular = 'Ingresa el nombre del titular.';
+    } else if (!soloLetras.test(tarjetaNueva.titular.trim())) {
+      nuevosErrores.titular = 'El titular solo puede contener letras.';
+    }
+
+    if (!tarjetaNueva.vencimiento) {
+      nuevosErrores.vencimiento = 'Ingresa la fecha de vencimiento (MM/AA).';
+    } else if (!vencimientoValido.test(tarjetaNueva.vencimiento)) {
+      nuevosErrores.vencimiento = 'Formato invalido. Usa MM/AA.';
+    }
+
+    setErroresTarjetaNueva(nuevosErrores);
+    if (Object.keys(nuevosErrores).length > 0) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/agregar-tarjeta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usuario_id: usuario.usuario_id,
+          numero: tarjetaNueva.numero.replace(/\s/g, ''),
+          titular: tarjetaNueva.titular,
+          vencimiento: tarjetaNueva.vencimiento,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setErroresTarjetaNueva({ general: data.error || 'No se pudo guardar la tarjeta.' });
+        return;
+      }
+
+      setAgregarTarjetaModal(false);
+      setTarjetaNueva({ numero: '', titular: '', vencimiento: '' });
+      setErroresTarjetaNueva({});
+      await cargarTarjetas();
+      if (data.tarjeta) {
+        setTarjetaSeleccionada(data.tarjeta);
+        setTipoPago(data.tarjeta.tipo_tarjeta?.toLowerCase() === 'debito' ? 'debito' : 'credito');
+      }
+    } catch {
+      setErroresTarjetaNueva({ general: 'Error al guardar la tarjeta. Intenta nuevamente.' });
+    }
+  };
+
   const qrImageUrl = qrCheckoutUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrCheckoutUrl)}`
     : '';
@@ -562,6 +671,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
           body: JSON.stringify({
             reserva_id,
             usuario_email: datosTitular.email || usuario.email,
+            puntos_a_usar: Math.max(0, Math.min(puntosACanjear, puntosDisponibles)),
           }),
         });
         const rawPagoQr = await responsePagoQr.text();
@@ -603,6 +713,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         tipo: tipoPago,
         cvv: cvvPago,
         cuotas: tipoPago === 'credito' ? cuotas : 1,
+        puntos_a_usar: Math.max(0, Math.min(puntosACanjear, puntosDisponibles)),
       };
       const responsePago = await fetch(`${API_BASE_URL}/pagar-reserva`, {
         method: 'POST',
@@ -664,143 +775,48 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     )}
 
     {/* Modal: Selección de tarjeta y forma de pago */}
-    {showFormaPagoModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">Selecciona tarjeta y forma de pago</h3>
-          <div className="mb-4">
-            <p className="mb-2 text-slate-700 font-semibold">Tarjetas guardadas:</p>
-            {tarjetasGuardadas.length === 0 ? (
-              <p className="text-slate-500">No tienes tarjetas guardadas.</p>
-            ) : (
-              <div className="space-y-2">
-                {tarjetasGuardadas.map((t) => (
-                  <button
-                    key={t.tarjeta_id}
-                    onClick={() => handleSeleccionarTarjeta(t)}
-                    className={`flex w-full flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between ${tarjetaSeleccionada?.tarjeta_id === t.tarjeta_id ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-slate-50'} hover:border-blue-400`}
-                  >
-                    <span>{t.marca} - {t.titular} ****{t.ultimos4}</span>
-                    {tarjetaSeleccionada?.tarjeta_id === t.tarjeta_id && <span className="ml-2 text-blue-600 font-bold">Seleccionada</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="mb-4">
-            <p className="mb-2 text-slate-700 font-semibold">Otras formas de pago:</p>
-            <button
-              onClick={() => handleSeleccionarTipoPago('mercadopago_qr')}
-              className={`w-full rounded-xl border px-4 py-3 text-left ${tipoPago === 'mercadopago_qr' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-slate-50'} hover:border-blue-400`}
-            >
-              Mercado Pago QR
-            </button>
-          </div>
-
-          {tipoPago && tipoPago !== 'mercadopago_qr' && tarjetaSeleccionada && (
-            <div className="mb-4">
-              <p className="mb-2 text-slate-700 font-semibold">Tipo de Pago: <span className="text-blue-600">{tipoPago === 'debito' ? 'Débito' : 'Crédito'}</span></p>
-              <div className="mt-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">CVV:</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={cvvPago}
-                  onChange={(e) => {
-                    setCvvPago(e.target.value.replace(/[^0-9]/g, ''));
-                    setCvvError('');
-                  }}
-                  placeholder="***"
-                  className={`w-full rounded-xl border px-3 py-2 ${cvvError ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
-                />
-                {cvvError && <p className="mt-1 text-xs text-red-600">{cvvError}</p>}
-              </div>
-              {tipoPago === 'credito' && (
-                <div className="mt-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Cuotas:</label>
-                  <select
-                    value={cuotas}
-                    onChange={(e) => handleSeleccionarCuotas(Number(e.target.value))}
-                    className="rounded-xl border border-slate-300 px-3 py-2"
-                  >
-                    {[1, 3, 6, 12].map((n) => (
-                      <option key={n} value={n}>{n} cuota{n > 1 ? 's' : ''} {n > 1 ? `(interés ${(n-1)*5}%)` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
-          {tipoPago && (
-            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900 mb-3">Resumen de Pago</p>
-              {tipoPago === 'mercadopago_qr' ? (
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Método:</span>
-                    <span className="font-semibold text-slate-900">Mercado Pago QR</span>
-                  </div>
-                  <div className="border-t border-slate-300 pt-2 flex justify-between">
-                    <span className="font-semibold text-slate-900">Total a Pagar:</span>
-                    <span className="font-bold text-blue-600">${calcularResumenPago().subtotal}</span>
-                  </div>
-                </div>
-              ) : tipoPago === 'debito' ? (
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Monto a Pagar:</span>
-                    <span className="font-semibold text-slate-900">${calcularResumenPago().subtotal}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Cuota:</span>
-                    <span className="font-semibold text-slate-900">1</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Interés:</span>
-                    <span className="font-semibold text-slate-900">0%</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Subtotal:</span>
-                    <span className="font-semibold text-slate-900">${calcularResumenPago().subtotal}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Interés ({(calcularResumenPago().interes * 100).toFixed(0)}%):</span>
-                    <span className="font-semibold text-slate-900">${(calcularResumenPago().subtotal * calcularResumenPago().interes).toFixed(2)}</span>
-                  </div>
-                  <div className="border-t border-slate-300 pt-2 flex justify-between">
-                    <span className="font-semibold text-slate-900">Total a Pagar:</span>
-                    <span className="font-bold text-blue-600">${calcularResumenPago().total}</span>
-                  </div>
-                  <div className="pt-2 flex justify-between">
-                    <span className="text-slate-600">{cuotas} cuota{cuotas > 1 ? 's' : ''} de:</span>
-                    <span className="font-semibold text-slate-900">${calcularResumenPago().montoPorCuota}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => setShowFormaPagoModal(false)}
-              className="rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleConfirmarPago}
-              disabled={!tipoPago || (tipoPago !== 'mercadopago_qr' && !tarjetaSeleccionada)}
-              className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              Confirmar y pagar
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+    <PaymentMethodModal
+      open={showFormaPagoModal}
+      title="Selecciona tarjeta y forma de pago"
+      cards={tarjetasGuardadas}
+      selectedCardId={tarjetaSeleccionada?.tarjeta_id ?? null}
+      paymentType={tipoPago}
+      installments={cuotas}
+      cvv={cvvPago}
+      cvvError={cvvError}
+      summary={calcularResumenPago()}
+      message={mensajeReserva.tipo === 'error' ? mensajeReserva.texto : ''}
+      availablePoints={puntosDisponibles}
+      pointsToUse={puntosACanjear}
+      confirmLabel="Confirmar y pagar"
+      disableConfirm={!tipoPago || (tipoPago !== 'mercadopago_qr' && !tarjetaSeleccionada)}
+      showAddCardModal={agregarTarjetaModal}
+      newCard={tarjetaNueva}
+      newCardErrors={erroresTarjetaNueva}
+      onSelectCard={handleSeleccionarTarjeta}
+      onSelectMercadoPagoQr={() => handleSeleccionarTipoPago('mercadopago_qr')}
+      onChangeCvv={(value) => {
+        setCvvPago(value.replace(/[^0-9]/g, ''));
+        setCvvError('');
+      }}
+      onChangeInstallments={handleSeleccionarCuotas}
+      onChangePointsToUse={(value) => {
+        const max = Math.max(0, puntosDisponibles);
+        setPuntosACanjear(Math.max(0, Math.min(Math.floor(value), max)));
+      }}
+      onOpenAddCard={() => setAgregarTarjetaModal(true)}
+      onClose={() => setShowFormaPagoModal(false)}
+      onConfirm={handleConfirmarPago}
+      onCloseAddCard={() => {
+        setAgregarTarjetaModal(false);
+        setErroresTarjetaNueva({});
+      }}
+      onChangeNewCard={(field, value) => {
+        handleCambioTarjetaNueva(field, value);
+        setErroresTarjetaNueva((prev) => ({ ...prev, [field]: '' }));
+      }}
+      onSaveNewCard={handleGuardarTarjetaNueva}
+    />
 
     {showQrModal && qrCheckoutUrl && (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">

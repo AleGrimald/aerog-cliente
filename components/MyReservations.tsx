@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '@/constants/api';
+import PaymentMethodModal from '@/components/PaymentMethodModal';
 // Reutilizamos la UI de pago de ReservationForm, pero aquí la lógica es para una reserva existente
 interface TarjetaGuardada {
   tarjeta_id: number;
   titular: string;
-  numero: string;
+  numero?: string;
   tipo_tarjeta?: string; // Agregada propiedad tipo_tarjeta
   marca: string;
   ultimos4: string;
@@ -118,6 +119,11 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
   const [secundarios, setSecundarios] = useState<PasajeroSecundario[]>([]);
   const [loadingSecundarios, setLoadingSecundarios] = useState(false);
   const [errorSecundarios, setErrorSecundarios] = useState('');
+  const [agregarTarjetaModal, setAgregarTarjetaModal] = useState(false);
+  const [tarjetaNueva, setTarjetaNueva] = useState({ numero: '', titular: '', vencimiento: '' });
+  const [erroresTarjetaNueva, setErroresTarjetaNueva] = useState<Record<string, string>>({});
+  const [puntosDisponibles, setPuntosDisponibles] = useState(0);
+  const [puntosACanjear, setPuntosACanjear] = useState(0);
   const [asientosPorReserva, setAsientosPorReserva] = useState<Record<number, AsientoReserva[]>>({});
   const [asientosModal, setAsientosModal] = useState<{ open: boolean; reserva: Reserva | null }>({ open: false, reserva: null });
   const [loadingAsientosModal, setLoadingAsientosModal] = useState(false);
@@ -133,8 +139,25 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       }
     } catch {}
   };
+
+  const cargarPuntos = async () => {
+    if (!pagoModal.reserva) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/perfil-puntos/${pagoModal.reserva.usuario_id}`);
+      const data = await response.json();
+      if (response.ok) {
+        const disponibles = Math.max(0, Number(data.puntos_disponibles || 0));
+        setPuntosDisponibles(disponibles);
+        setPuntosACanjear((prev) => Math.min(prev, disponibles));
+      }
+    } catch {}
+  };
+
   useEffect(() => {
-    if (pagoModal.open) cargarTarjetas();
+    if (pagoModal.open) {
+      cargarTarjetas();
+      cargarPuntos();
+    }
     if (!pagoModal.open) {
       setTarjetaSeleccionada(null);
       setTipoPago(null);
@@ -143,17 +166,24 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       setQrCheckoutUrl('');
       setCvvPago('');
       setCvvError('');
+      setAgregarTarjetaModal(false);
+      setTarjetaNueva({ numero: '', titular: '', vencimiento: '' });
+      setErroresTarjetaNueva({});
+      setPuntosDisponibles(0);
+      setPuntosACanjear(0);
     }
   }, [pagoModal.open]);
   
   const calcularResumenPago = () => {
     if (!pagoModal.reserva) return { subtotal: 0, interes: 0, total: 0, montoPorCuota: 0 };
-    const subtotal = pagoModal.reserva.precio_base;
+    const subtotal = getTotalBaseReserva(pagoModal.reserva);
     let interes = 0;
     if (tipoPago === 'credito' && cuotas > 1) {
       interes = 0.05 * (cuotas - 1);
     }
-    const total = Math.round((subtotal * (1 + interes)) * 100) / 100;
+    const totalSinDescuento = Math.round((subtotal * (1 + interes)) * 100) / 100;
+    const puntosAplicables = Math.max(0, Math.min(puntosACanjear, puntosDisponibles, Math.floor(totalSinDescuento)));
+    const total = Math.round(Math.max(0, totalSinDescuento - puntosAplicables) * 100) / 100;
     const montoPorCuota = Math.round((total / cuotas) * 100) / 100;
     return {
       subtotal,
@@ -168,9 +198,27 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
     : '';
 
   const getCantidadPasajeros = (reserva: Reserva): number => {
-    const cantidad = Number(reserva.cantidad_pasajeros || 1);
-    if (!Number.isFinite(cantidad) || cantidad < 1) return 1;
-    return cantidad;
+    // Primero intentar usar cantidad_pasajeros si viene del backend
+    const cantidad = Number(reserva.cantidad_pasajeros);
+    if (Number.isFinite(cantidad) && cantidad >= 1) return cantidad;
+
+    // Si pago_monto ya existe, deducir cantidad = pago_monto / precio_base
+    const precioBase = Number(reserva.precio_base || 0);
+    const pagoMonto = Number(reserva.pago_monto || 0);
+    if (pagoMonto > 0 && precioBase > 0) {
+      const cantidadDeducida = Math.round(pagoMonto / precioBase);
+      if (cantidadDeducida >= 1) return cantidadDeducida;
+    }
+
+    // Si no, intentar contar asientos de la reserva
+    const asientos = asientosPorReserva[reserva.reserva_id];
+    if (Array.isArray(asientos) && asientos.length > 0) {
+      console.log(`[getCantidadPasajeros] Usando asientos: ${asientos.length} para reserva ${reserva.reserva_id}`);
+      return asientos.length;
+    }
+
+    console.log(`[getCantidadPasajeros] No se pudo determinar cantidad, usando fallback 1 para reserva ${reserva.reserva_id}. cantidad_pasajeros=${reserva.cantidad_pasajeros}, asientos=${asientos?.length || 0}`);
+    return 1;
   };
 
   const getTotalBaseReserva = (reserva: Reserva): number => {
@@ -350,6 +398,81 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
     setCvvError('');
   };
 
+  const handleCambioTarjetaNueva = (campo: string, valor: string) => {
+    let filtered = valor;
+    if (campo === 'numero') {
+      filtered = valor.replace(/[^0-9\s]/g, '');
+    } else if (campo === 'titular') {
+      filtered = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+    } else if (campo === 'vencimiento') {
+      const soloNumeros = valor.replace(/[^0-9]/g, '').slice(0, 4);
+      if (soloNumeros.length <= 2) {
+        filtered = soloNumeros;
+      } else {
+        filtered = `${soloNumeros.slice(0, 2)}/${soloNumeros.slice(2)}`;
+      }
+    }
+    setTarjetaNueva((prev) => ({ ...prev, [campo]: filtered }));
+  };
+
+  const handleGuardarTarjetaNueva = async () => {
+    const nuevosErrores: Record<string, string> = {};
+    const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
+    const vencimientoValido = /^\d{2}\/\d{2}$/;
+
+    if (!tarjetaNueva.numero.replace(/\s/g, '')) {
+      nuevosErrores.numero = 'Ingresa el número de tarjeta.';
+    } else if (!/^\d{13,19}$/.test(tarjetaNueva.numero.replace(/\s/g, ''))) {
+      nuevosErrores.numero = 'El número de tarjeta debe tener 13-19 dígitos.';
+    }
+
+    if (!tarjetaNueva.titular.trim()) {
+      nuevosErrores.titular = 'Ingresa el nombre del titular.';
+    } else if (!soloLetras.test(tarjetaNueva.titular.trim())) {
+      nuevosErrores.titular = 'El titular solo puede contener letras.';
+    }
+
+    if (!tarjetaNueva.vencimiento) {
+      nuevosErrores.vencimiento = 'Ingresa la fecha de vencimiento (MM/AA).';
+    } else if (!vencimientoValido.test(tarjetaNueva.vencimiento)) {
+      nuevosErrores.vencimiento = 'Formato inválido. Usa MM/AA.';
+    }
+
+    setErroresTarjetaNueva(nuevosErrores);
+    if (Object.keys(nuevosErrores).length > 0) return;
+
+    if (!pagoModal.reserva) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/agregar-tarjeta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usuario_id: pagoModal.reserva.usuario_id,
+          numero: tarjetaNueva.numero.replace(/\s/g, ''),
+          titular: tarjetaNueva.titular,
+          vencimiento: tarjetaNueva.vencimiento,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setErroresTarjetaNueva({ general: data.error || 'No se pudo guardar la tarjeta.' });
+        return;
+      }
+
+      setAgregarTarjetaModal(false);
+      setTarjetaNueva({ numero: '', titular: '', vencimiento: '' });
+      setErroresTarjetaNueva({});
+      await cargarTarjetas();
+      if (data.tarjeta) {
+        setTarjetaSeleccionada(data.tarjeta);
+        setTipoPago(data.tarjeta.tipo_tarjeta?.toLowerCase() === 'debito' ? 'debito' : 'credito');
+      }
+    } catch (error) {
+      setErroresTarjetaNueva({ general: 'Error al guardar la tarjeta. Intenta nuevamente.' });
+    }
+  };
+
   // Handler para confirmar pago
   const handleConfirmarPago = async () => {
     if (!pagoModal.reserva || !tipoPago) return;
@@ -363,6 +486,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
           body: JSON.stringify({
             reserva_id: pagoModal.reserva.reserva_id,
             usuario_email: pagoModal.reserva.email,
+            puntos_a_usar: Math.max(0, Math.min(puntosACanjear, puntosDisponibles)),
           }),
         });
         const data = await response.json();
@@ -399,6 +523,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
         tipo: tipoPago,
         cvv: cvvPago,
         cuotas: tipoPago === 'credito' ? cuotas : 1,
+        puntos_a_usar: Math.max(0, Math.min(puntosACanjear, puntosDisponibles)),
       };
       // Endpoint a implementar en backend: /pagar-reserva
       const response = await fetch(`${API_BASE_URL}/pagar-reserva`, {
@@ -414,6 +539,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       setShowCheckmark(true);
       setMensajePago('Pago realizado y reserva confirmada.');
       await fetchReservas();
+      await cargarPuntos();
       await new Promise((resolve) => setTimeout(resolve, 700));
       setPagoModal({ open: false, reserva: null });
     } catch {
@@ -442,6 +568,7 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
       if (data.estado === 'confirmado') {
         setMensajePago('Pago QR confirmado. Reserva actualizada.');
         await fetchReservas();
+        await cargarPuntos();
         setTimeout(() => setPagoModal({ open: false, reserva: null }), 1200);
         return;
       }
@@ -743,174 +870,56 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                   Pagar Ahora
                 </button>
                     {/* Modal de pago para reservas pendientes */}
-                    {pagoModal.open && pagoModal.reserva && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-8">
-                          <h3 className="text-xl font-bold text-slate-900 mb-4">Pagar Reserva</h3>
-                          <div className="mb-4">
-                            <p className="mb-2 text-slate-700 font-semibold">Tarjetas guardadas:</p>
-                            {tarjetasGuardadas.length === 0 ? (
-                              <p className="text-slate-500">No tienes tarjetas guardadas.</p>
-                            ) : (
-                              <div className="space-y-2">
-                                {tarjetasGuardadas.map((t) => (
-                                  <button
-                                    key={t.tarjeta_id}
-                                    onClick={() => handleSeleccionarTarjeta(t)}
-                                    className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 ${tarjetaSeleccionada?.tarjeta_id === t.tarjeta_id ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-slate-50'} hover:border-blue-400`}
-                                  >
-                                    <span>{t.marca} - {t.titular} ****{t.ultimos4}</span>
-                                    {tarjetaSeleccionada?.tarjeta_id === t.tarjeta_id && <span className="ml-2 text-blue-600 font-bold">Seleccionada</span>}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                    <PaymentMethodModal
+                      open={pagoModal.open && Boolean(pagoModal.reserva)}
+                      title="Pagar Reserva"
+                      cards={tarjetasGuardadas}
+                      selectedCardId={tarjetaSeleccionada?.tarjeta_id ?? null}
+                      paymentType={tipoPago}
+                      installments={cuotas}
+                      cvv={cvvPago}
+                      cvvError={cvvError}
+                      summary={calcularResumenPago()}
+                      message={mensajePago}
+                      availablePoints={puntosDisponibles}
+                      pointsToUse={puntosACanjear}
+                      qrCheckoutUrl={qrCheckoutUrl}
+                      qrImageUrl={qrImageUrl}
+                      showVerifyQrButton
+                      isVerifyingQr={verificandoQr}
+                      confirmLabel={tipoPago === 'mercadopago_qr' ? 'Generar QR' : 'Confirmar y pagar'}
+                      disableConfirm={!tipoPago || (tipoPago !== 'mercadopago_qr' && !tarjetaSeleccionada)}
+                      showAddCardModal={agregarTarjetaModal}
+                      newCard={tarjetaNueva}
+                      newCardErrors={erroresTarjetaNueva}
+                      onSelectCard={handleSeleccionarTarjeta}
+                      onSelectMercadoPagoQr={handleSeleccionarMercadoPagoQr}
+                      onChangeCvv={(value) => {
+                        setCvvPago(value.replace(/[^0-9]/g, ''));
+                        setCvvError('');
+                      }}
+                      onChangeInstallments={setCuotas}
+                      onChangePointsToUse={(value) => {
+                        const max = Math.max(0, puntosDisponibles);
+                        setPuntosACanjear(Math.max(0, Math.min(Math.floor(value), max)));
+                      }}
+                      onOpenAddCard={() => setAgregarTarjetaModal(true)}
+                      onClose={() => setPagoModal({ open: false, reserva: null })}
+                      onConfirm={handleConfirmarPago}
+                      onVerifyQr={handleVerificarPagoQr}
+                      onOpenCheckout={() => window.open(qrCheckoutUrl, '_blank', 'noopener,noreferrer')}
+                      onCloseAddCard={() => {
+                        setAgregarTarjetaModal(false);
+                        setErroresTarjetaNueva({});
+                      }}
+                      onChangeNewCard={(field, value) => {
+                        handleCambioTarjetaNueva(field, value);
+                        setErroresTarjetaNueva((prev) => ({ ...prev, [field]: '' }));
+                      }}
+                      onSaveNewCard={handleGuardarTarjetaNueva}
+                    />
 
-                          <div className="mb-4">
-                            <p className="mb-2 text-slate-700 font-semibold">Otras formas de pago:</p>
-                            <button
-                              onClick={handleSeleccionarMercadoPagoQr}
-                              className={`w-full rounded-xl border px-4 py-3 text-left ${tipoPago === 'mercadopago_qr' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-slate-50'} hover:border-blue-400`}
-                            >
-                              Mercado Pago QR
-                            </button>
-                          </div>
-
-                          {tipoPago && tipoPago !== 'mercadopago_qr' && tarjetaSeleccionada && (
-                            <div className="mb-4">
-                              <p className="mb-3 text-slate-700 font-semibold">Tipo de Pago: <span className="text-blue-600">{tipoPago === 'debito' ? 'Débito' : 'Crédito'}</span></p>
-                              <div className="mb-3">
-                                <label className="block text-sm font-medium text-slate-700 mb-1">CVV:</label>
-                                <input
-                                  type="password"
-                                  inputMode="numeric"
-                                  maxLength={4}
-                                  value={cvvPago}
-                                  onChange={(e) => {
-                                    setCvvPago(e.target.value.replace(/[^0-9]/g, ''));
-                                    setCvvError('');
-                                  }}
-                                  placeholder="***"
-                                  className={`w-full rounded-xl border px-3 py-2 ${cvvError ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
-                                />
-                                {cvvError && <p className="mt-1 text-xs text-red-600">{cvvError}</p>}
-                              </div>
-                              {tipoPago === 'credito' && (
-                                <div className="mb-3">
-                                  <label className="block text-sm font-medium text-slate-700 mb-1">Cuotas:</label>
-                                  <select
-                                    value={cuotas}
-                                    onChange={(e) => setCuotas(Number(e.target.value))}
-                                    className="rounded-xl border border-slate-300 px-3 py-2"
-                                  >
-                                    {[1, 3, 6, 12].map((n) => (
-                                      <option key={n} value={n}>{n} cuota{n > 1 ? 's' : ''} {n > 1 ? `(interés ${(n-1)*5}%)` : ''}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              )}
-
-                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                <p className="text-sm font-semibold text-slate-900 mb-2">Resumen de Pago</p>
-                                {tipoPago === 'debito' ? (
-                                  <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-600">Monto a Pagar:</span>
-                                      <span className="font-semibold text-slate-900">${calcularResumenPago().subtotal}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-600">Cuota:</span>
-                                      <span className="font-semibold text-slate-900">1</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-600">Interés:</span>
-                                      <span className="font-semibold text-slate-900">0%</span>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-600">Subtotal:</span>
-                                      <span className="font-semibold text-slate-900">${calcularResumenPago().subtotal}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-600">Interés ({(calcularResumenPago().interes * 100).toFixed(0)}%):</span>
-                                      <span className="font-semibold text-slate-900">${(calcularResumenPago().subtotal * calcularResumenPago().interes).toFixed(2)}</span>
-                                    </div>
-                                    <div className="border-t border-slate-300 pt-2 flex justify-between">
-                                      <span className="font-semibold text-slate-900">Total a Pagar:</span>
-                                      <span className="font-bold text-blue-600">${calcularResumenPago().total}</span>
-                                    </div>
-                                    <div className="pt-2 flex justify-between">
-                                      <span className="text-slate-600">{cuotas} cuota{cuotas > 1 ? 's' : ''} de:</span>
-                                      <span className="font-semibold text-slate-900">${calcularResumenPago().montoPorCuota}</span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {tipoPago === 'mercadopago_qr' && (
-                            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-sm font-semibold text-slate-900 mb-2">Resumen de Pago</p>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-slate-600">Método:</span>
-                                  <span className="font-semibold text-slate-900">Mercado Pago QR</span>
-                                </div>
-                                <div className="border-t border-slate-300 pt-2 flex justify-between">
-                                  <span className="font-semibold text-slate-900">Total a Pagar:</span>
-                                  <span className="font-bold text-blue-600">${calcularResumenPago().subtotal}</span>
-                                </div>
-                              </div>
-
-                              {qrCheckoutUrl && (
-                                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
-                                  <div className="flex justify-center">
-                                    <img src={qrImageUrl} alt="QR Mercado Pago" className="h-64 w-64 max-w-full" />
-                                  </div>
-                                  <button
-                                    onClick={() => window.open(qrCheckoutUrl, '_blank', 'noopener,noreferrer')}
-                                    className="mt-3 w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                                  >
-                                    Abrir checkout de Mercado Pago
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {mensajePago && (
-                            <div className="mb-4 text-center text-blue-700 font-semibold">{mensajePago}</div>
-                          )}
-                          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                            <button
-                              onClick={() => setPagoModal({ open: false, reserva: null })}
-                              className="w-full rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-300 sm:w-auto"
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              onClick={handleConfirmarPago}
-                              disabled={!tipoPago || (tipoPago !== 'mercadopago_qr' && !tarjetaSeleccionada)}
-                              className="w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
-                            >
-                              {tipoPago === 'mercadopago_qr' ? 'Generar QR' : 'Confirmar y pagar'}
-                            </button>
-                            {tipoPago === 'mercadopago_qr' && (
-                              <button
-                                onClick={handleVerificarPagoQr}
-                                disabled={verificandoQr}
-                                className="w-full rounded-full bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 sm:w-auto"
-                              >
-                                {verificandoQr ? 'Verificando...' : 'Verificar pago QR'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        {/* Modal confirmando pago */}
+                    {/* Modal confirmando pago */}
                         {showConfirmingModal && (
                           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                             <div className="flex flex-col items-center gap-5 rounded-3xl bg-white px-12 py-10 shadow-2xl">
@@ -955,8 +964,6 @@ export default function MyReservations({ usuarioId }: MyReservationsProps) {
                             </div>
                           </div>
                         )}
-                      </div>
-                    )}
               </div>
             )}
           </div>

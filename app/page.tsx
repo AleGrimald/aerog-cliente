@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AuthForm from '@/components/AuthForm';
 import Dashboard from '@/components/Dashboard';
@@ -49,17 +49,6 @@ export default function Home() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-  useEffect(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('usuario') : null;
-    if (stored) {
-      try {
-        setUsuario(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem('usuario');
-      }
-    }
-  }, []);
-
   const handleLoginSuccess = (user: Usuario) => {
     setUsuario(user);
   };
@@ -69,7 +58,6 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('usuario');
     setUsuario(null);
     setMode('login');
   };

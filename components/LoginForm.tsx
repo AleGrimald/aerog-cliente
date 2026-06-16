@@ -64,7 +64,6 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
 
       if (response.ok) {
         console.log('Login exitoso', result.usuario);
-        localStorage.setItem('usuario', JSON.stringify(result.usuario));
         setEmail('');
         setPassword('');
         onLoginSuccess(result.usuario);

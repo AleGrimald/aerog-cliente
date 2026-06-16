@@ -50,6 +50,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
   const [pasajerosReserva, setPasajerosReserva] = useState(1);
   const [mensaje, setMensaje] = useState('');
   const [resultados, setResultados] = useState<any[]>([]);
+  const [resultadosVuelta, setResultadosVuelta] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchingModal, setSearchingModal] = useState(false);
   const [vueloSeleccionado, setVueloSeleccionado] = useState<any>(null);
@@ -192,6 +193,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
     e.preventDefault();
     setMensaje('');
     setResultados([]);
+    setResultadosVuelta([]);
     setOrigenError('');
     setDestinoError('');
 
@@ -270,8 +272,17 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
         return;
       }
 
-      setResultados(data.results || []);
-      setMensaje(`Se encontraron ${data.results?.length ?? 0} vuelos para tu búsqueda.`);
+      const ida = Array.isArray(data.outboundResults) ? data.outboundResults : (data.results || []);
+      const vuelta = Array.isArray(data.returnResults) ? data.returnResults : [];
+
+      setResultados(ida);
+      setResultadosVuelta(vuelta);
+
+      if (tripType === 'round-trip') {
+        setMensaje(`Se encontraron ${ida.length} vuelos de ida y ${vuelta.length} vuelos de vuelta para tu búsqueda.`);
+      } else {
+        setMensaje(`Se encontraron ${ida.length} vuelos para tu búsqueda.`);
+      }
       setSearchSection('results');
     } catch {
       setMensaje('No se pudo conectar con el servidor de vuelos.');
@@ -359,26 +370,7 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
           >
             Buscar Vuelos
           </button>
-          <button
-            onClick={() => setActiveTab('reservations')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-semibold transition sm:px-6 ${
-              activeTab === 'reservations'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Mis Reservas
-          </button>
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-semibold transition sm:px-6 ${
-              activeTab === 'profile'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Perfil de Usuario
-          </button>
+          
         </div>
 
         {/* Tab: Buscar Vuelos */}
@@ -594,6 +586,33 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
                     <div className="mt-4 space-y-4">
                       {resultados.map((vuelo) => (
                         <div key={vuelo.vuelo_id} className="rounded-3xl border border-slate-200 p-4">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-slate-900">{vuelo.codigo_vuelo}</p>
+                              <p className="text-sm text-slate-600">{vuelo.origen_nombre}, {vuelo.provincia_origen} → {vuelo.destino_nombre}, {vuelo.provincia_destino}</p>
+                              <p className="text-sm text-slate-600">Salida: {formatDateTime(vuelo.fecha_salida)}</p>
+                              <p className="text-sm text-slate-600">Llegada: {formatDateTime(vuelo.fecha_llegada)}</p>
+                              <p className="text-sm text-slate-600">Precio: ${vuelo.precio_base}</p>
+                            </div>
+                            <button
+                              onClick={() => handleSeleccionarVuelo(vuelo)}
+                              className="w-full whitespace-nowrap rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
+                            >
+                              Seleccionar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {tripType === 'round-trip' && resultadosVuelta.length > 0 && (
+                  <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                    <h3 className="text-xl font-semibold text-slate-900 sm:text-2xl">Vuelos de vuelta</h3>
+                    <div className="mt-4 space-y-4">
+                      {resultadosVuelta.map((vuelo) => (
+                        <div key={`vuelta-${vuelo.vuelo_id}`} className="rounded-3xl border border-slate-200 p-4">
                           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div className="flex-1">
                               <p className="text-sm font-semibold text-slate-900">{vuelo.codigo_vuelo}</p>
