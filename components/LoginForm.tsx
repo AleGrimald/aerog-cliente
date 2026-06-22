@@ -49,6 +49,8 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     setLoading(true);
 
     try {
+      console.log('Intentando login a:', `${API_BASE_URL}/login`);
+      
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: {
@@ -60,7 +62,19 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
         }),
       });
 
-      const result = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      let result;
+      try {
+        result = await response.json();
+        console.log('Response body:', result);
+      } catch (parseError) {
+        console.error('Error parsing JSON:', parseError);
+        setError('Error en la respuesta del servidor (JSON inválido)');
+        setLoading(false);
+        return;
+      }
 
       if (response.ok) {
         console.log('Login exitoso', result.usuario);
@@ -68,11 +82,14 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
         setPassword('');
         onLoginSuccess(result.usuario);
       } else {
-        setError(result.error || 'Error al iniciar sesión');
+        const errorMsg = result.error || `Error ${response.status}: al iniciar sesión`;
+        console.error('Login failed:', errorMsg);
+        setError(errorMsg);
       }
     } catch (err) {
-      setError('Error al conectar con el servidor');
-      console.error(err);
+      const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
+      console.error('Fetch error:', errorMsg, err);
+      setError(`Error al conectar con el servidor: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
