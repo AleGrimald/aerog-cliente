@@ -1,6 +1,7 @@
-﻿'use client';
+'use client';
 
-import { useState, Suspense, useEffect } from 'react';
+import { useState, Suspense } from 'react';
+import React from 'react';
 import { useSearchParams } from 'next/navigation';
 import AuthForm from '@/components/AuthForm';
 import Dashboard from '@/components/Dashboard';
@@ -48,22 +49,6 @@ function EmailVerificationBanner() {
 export default function Home() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [usuario, setUsuario] = useState<Usuario | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const usuarioGuardado = localStorage.getItem('aero_g_usuario');
-    if (usuarioGuardado) {
-      try {
-        const usuario = JSON.parse(usuarioGuardado);
-        setUsuario(usuario);
-        console.log('[SESSION] Usuario recuperado desde localStorage');
-      } catch (e) {
-        console.error('[SESSION] Error al recuperar usuario:', e);
-        localStorage.removeItem('aero_g_usuario');
-      }
-    }
-    setMounted(true);
-  }, []);
 
   const handleLoginSuccess = (user: Usuario) => {
     setUsuario(user);
@@ -75,15 +60,38 @@ export default function Home() {
 
   const handleLogout = () => {
     setUsuario(null);
-    localStorage.removeItem('aero_g_usuario');
+      };
+
+      const handleLogoutWithCleanup = () => {
+        setUsuario(null);
+        localStorage.removeItem('aero_g_usuario');
+        setMode('login');
     setMode('login');
   };
 
-  if (!mounted) {
-    return null;
-  }
-
   if (usuario) {
+      const [mounted, setMounted] = useState(false);
+
+      React.useEffect(() => {
+        const usuarioGuardado = localStorage.getItem('aero_g_usuario');
+        if (usuarioGuardado) {
+          try {
+            const usuario = JSON.parse(usuarioGuardado);
+            setUsuario(usuario);
+            console.log('[SESSION] Usuario recuperado desde localStorage');
+          } catch (e) {
+            console.error('[SESSION] Error al recuperar usuario:', e);
+            localStorage.removeItem('aero_g_usuario');
+          }
+        }
+        setMounted(true);
+      }, []);
+
+      if (!mounted) {
+        return null;
+      }
+
+      if (usuario) {
     if (esUsuarioAdmin(usuario)) {
       return <AdminDashboard usuario={usuario} onLogout={handleLogout} />;
     }

@@ -634,6 +634,8 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
     setMensajeReserva({ tipo: '', texto: '' });
     setConfirmandoReserva(true);
     try {
+      console.log('[RESERVA] Iniciando proceso de confirmación y pago');
+      
       // Paso 1: Crear reserva con estado 'pendiente'
       const payloadReserva = {
         vuelo_id: vuelo.vuelo_id,
@@ -650,21 +652,29 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         })),
         estado: 'pendiente',
       };
+      
+      console.log('[RESERVA] Creando reserva con estos datos:', payloadReserva);
       const responseReserva = await fetch(`${API_BASE_URL}/confirmar-reserva`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadReserva),
       });
       const dataReserva = await responseReserva.json();
+      
       if (!responseReserva.ok) {
+        console.error('[RESERVA] Error creando reserva:', dataReserva);
         setMensajeReserva({ tipo: 'error', texto: dataReserva.error || 'No se pudo crear la reserva.' });
         return;
       }
       
       const reserva_id = dataReserva.reserva_ids[0]; // Usar el ID del pasajero principal
+      console.log('[RESERVA] Reserva creada exitosamente con ID:', reserva_id);
       
       // Paso 2: Registrar el pago
       if (tipoPago === 'mercadopago_qr') {
+        console.log('[PAGO] Tipo de pago: Mercado Pago QR');
+        console.log('[PAGO] Generando preferencia de pago para reserva:', reserva_id);
+        
         const responsePagoQr = await fetch(`${API_BASE_URL}/crear-pago-qr`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -683,7 +693,9 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
             dataPagoQr = {};
           }
         }
+        
         if (!responsePagoQr.ok) {
+          console.error('[PAGO] Error generando pago QR:', dataPagoQr);
           setMensajeReserva({
             tipo: 'error',
             texto: dataPagoQr.error || `No se pudo generar el pago QR (HTTP ${responsePagoQr.status}).`,
@@ -691,7 +703,12 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
           return;
         }
 
+        console.log('[PAGO] Preferencia de pago creada exitosamente');
+        console.log('[PAGO] Datos de pago:', dataPagoQr);
+        
         if (dataPagoQr.checkout_url) {
+          console.log('[PAGO] Mostrando modal con QR de Mercado Pago');
+          console.log('[PAGO] URL de checkout:', dataPagoQr.checkout_url);
           setQrCheckoutUrl(dataPagoQr.checkout_url);
           setQrReservaId(reserva_id);
           setShowQrModal(true);
@@ -733,7 +750,7 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         onReservaConfirmada();
       }
     } catch (err) {
-      console.error('Error al confirmar pago/reserva:', err);
+      console.error('[RESERVA] Error al confirmar pago/reserva:', err);
       setMensajeReserva({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });
     } finally {
       setShowConfirmingModal(false);

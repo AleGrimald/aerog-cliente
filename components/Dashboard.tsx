@@ -54,6 +54,58 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
   const [loading, setLoading] = useState(false);
   const [searchingModal, setSearchingModal] = useState(false);
   const [vueloSeleccionado, setVueloSeleccionado] = useState<any>(null);
+  const [mensajeMP, setMensajeMP] = useState<{ tipo: 'exito' | 'error' | 'pendiente' | null; texto: string; reservaId?: number }>({
+    tipo: null,
+    texto: '',
+  });
+
+  // Capturar respuesta de Mercado Pago desde los query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mpStatus = params.get('mp_status');
+    const mpMessage = params.get('mp_message');
+    const reservaId = params.get('reserva_id');
+    const paymentId = params.get('payment_id');
+
+    if (mpStatus) {
+      console.log('[DASHBOARD] Respuesta de Mercado Pago detectada');
+      console.log('mp_status:', mpStatus);
+      console.log('reserva_id:', reservaId);
+      console.log('payment_id:', paymentId);
+      console.log('mp_message:', mpMessage);
+
+      if (mpStatus === 'confirmado') {
+        setMensajeMP({ tipo: null, texto: '' });
+        // Cambiar a la pestaña de Mis Reservas
+        setActiveTab('reservations');
+        console.log('[DASHBOARD] Cambiando a pestaña de Mis Reservas');
+      } else if (mpStatus === 'error') {
+        setMensajeMP({
+          tipo: 'error',
+          texto: `✗ Error en el pago: ${mpMessage || 'No se pudo procesar tu pago'}`,
+          reservaId: reservaId ? parseInt(reservaId) : undefined,
+        });
+        console.log('[DASHBOARD] Error en el pago');
+      } else if (mpStatus === 'rejected' || mpStatus === 'cancelled' || mpStatus === 'charged_back') {
+        setMensajeMP({
+          tipo: 'error',
+          texto: `✗ Tu pago fue rechazado (${mpStatus}). Por favor intenta nuevamente.`,
+          reservaId: reservaId ? parseInt(reservaId) : undefined,
+        });
+        console.log('[DASHBOARD] Pago rechazado:', mpStatus);
+      } else if (mpStatus === 'pendiente') {
+        setMensajeMP({
+          tipo: 'pendiente',
+          texto: 'Pago pendiente: Tu pago está siendo procesado. Por favor espera...',
+          reservaId: reservaId ? parseInt(reservaId) : undefined,
+        });
+        console.log('[DASHBOARD] Pago pendiente');
+      }
+
+      // Limpiar los parámetros de la URL sin recargar la página
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchAirports = async () => {
@@ -355,6 +407,21 @@ export default function Dashboard({ usuario, onLogout }: DashboardProps) {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+        {/* Mensaje de respuesta de Mercado Pago */}
+        {mensajeMP.tipo && (
+          <div
+            className={`mb-6 rounded-lg px-4 py-4 text-sm font-medium sm:px-6 sm:py-5 ${
+              mensajeMP.tipo === 'exito'
+                ? 'border border-green-200 bg-green-50 text-green-800'
+                : mensajeMP.tipo === 'error'
+                ? 'border border-red-200 bg-red-50 text-red-800'
+                : 'border border-yellow-200 bg-yellow-50 text-yellow-800'
+            }`}
+          >
+            {mensajeMP.texto}
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-1 sm:mb-8 sm:gap-4">
           <button

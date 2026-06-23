@@ -78,6 +78,8 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
 
       if (response.ok) {
         console.log('Login exitoso', result.usuario);
+        // Guardar usuario en localStorage para persistencia
+        localStorage.setItem('aero_g_usuario', JSON.stringify(result.usuario));
         setEmail('');
         setPassword('');
         onLoginSuccess(result.usuario);
