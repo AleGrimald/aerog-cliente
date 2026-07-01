@@ -174,6 +174,9 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
   const [editandoVueloId, setEditandoVueloId] = useState<number | null>(null);
   const [vueloForm, setVueloForm] = useState<VueloForm>(initialVueloForm);
   const [busquedaVuelos, setBusquedaVuelos] = useState('');
+  const [paginaVuelos, setPaginaVuelos] = useState(1);
+  const [totalPaginasVuelos, setTotalPaginasVuelos] = useState(1);
+  const [paginacionVuelos, setPaginacionVuelos] = useState<any>(null);
   const vueloFormContainerRef = useRef<HTMLDivElement | null>(null);
   const codigoVueloInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -182,7 +185,13 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
   const [editandoUsuarioId, setEditandoUsuarioId] = useState<number | null>(null);
   const [usuarioForm, setUsuarioForm] = useState<UsuarioForm>(initialUsuarioForm);
   const [busquedaUsuarios, setBusquedaUsuarios] = useState('');
+  const [paginaUsuarios, setPaginaUsuarios] = useState(1);
+  const [totalPaginasUsuarios, setTotalPaginasUsuarios] = useState(1);
+  const [paginacionUsuarios, setPaginacionUsuarios] = useState<any>(null);
   const [reservasSeleccionadas, setReservasSeleccionadas] = useState<number[]>([]);
+  const [paginaReservas, setPaginaReservas] = useState(1);
+  const [totalPaginasReservas, setTotalPaginasReservas] = useState(1);
+  const [paginacionReservas, setPaginacionReservas] = useState<any>(null);
   const [eliminandoReservasSeleccionadas, setEliminandoReservasSeleccionadas] = useState(false);
   const [confirmandoAccion, setConfirmandoAccion] = useState(false);
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
@@ -217,60 +226,126 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
   const vuelosFiltrados = useMemo(() => {
     if (!Array.isArray(vuelos)) return [];
-    const q = busquedaVuelos.trim().toLowerCase();
-    if (!q) return vuelos;
+    // Filtrar duplicados por vuelo_id
+    const seen = new Set<number>();
     return vuelos.filter((v) => {
-      if (!v || typeof v !== 'object') return false;
-      const texto = `${v.codigo_vuelo || ''} ${v.origen_nombre || ''} ${v.destino_nombre || ''} ${formatDateTime(v.fecha_salida)} ${formatDateTime(v.fecha_llegada)}`.toLowerCase();
-      return texto.includes(q);
+      if (!v?.vuelo_id) return false;
+      if (seen.has(v.vuelo_id)) return false;
+      seen.add(v.vuelo_id);
+      return true;
     });
-  }, [vuelos, busquedaVuelos]);
+  }, [vuelos]);
 
   const usuariosFiltrados = useMemo(() => {
     if (!Array.isArray(usuarios)) return [];
-    const q = busquedaUsuarios.trim().toLowerCase();
-    if (!q) return usuarios;
+    // Filtrar duplicados por usuario_id
+    const seen = new Set<number>();
     return usuarios.filter((u) => {
-      if (!u || typeof u !== 'object') return false;
-      const texto = `${u.nombre || ''} ${u.apellido || ''} ${u.email || ''} ${u.telefono || ''} ${u.dni || ''}`.toLowerCase();
-      return texto.includes(q);
+      if (!u?.usuario_id) return false;
+      if (seen.has(u.usuario_id)) return false;
+      seen.add(u.usuario_id);
+      return true;
     });
-  }, [usuarios, busquedaUsuarios]);
+  }, [usuarios]);
+
+  const reservasFiltradas = useMemo(() => {
+    if (!Array.isArray(reservas)) return [];
+    // Filtrar duplicados por reserva_id
+    const seen = new Set<number>();
+    return reservas.filter((r) => {
+      if (!r?.reserva_id) return false;
+      if (seen.has(r.reserva_id)) return false;
+      seen.add(r.reserva_id);
+      return true;
+    });
+  }, [reservas]);
+
+  const cargarVuelos = async (pagina: number = 1) => {
+    limpiarMensajes();
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/vuelos?pagina=${pagina}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'No se pudieron cargar vuelos.');
+
+      setVuelos(Array.isArray(data.vuelos) ? data.vuelos : []);
+      setPaginacionVuelos(data.paginacion || {});
+      if (data.paginacion) {
+        setTotalPaginasVuelos(data.paginacion.total_paginas || 1);
+      }
+      setPaginaVuelos(pagina);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo cargar vuelos.');
+    }
+  };
+
+  const cargarUsuarios = async (pagina: number = 1) => {
+    limpiarMensajes();
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/usuarios?pagina=${pagina}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'No se pudieron cargar usuarios.');
+
+      setUsuarios(Array.isArray(data.usuarios) ? data.usuarios : []);
+      setPaginacionUsuarios(data.paginacion || {});
+      if (data.paginacion) {
+        setTotalPaginasUsuarios(data.paginacion.total_paginas || 1);
+      }
+      setPaginaUsuarios(pagina);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo cargar usuarios.');
+    }
+  };
+
+  const cargarReservas = async (pagina: number = 1) => {
+    limpiarMensajes();
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/reservas?pagina=${pagina}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'No se pudieron cargar reservas.');
+
+      setReservas(Array.isArray(data.reservas) ? data.reservas : []);
+      setPaginacionReservas(data.paginacion || {});
+      if (data.paginacion) {
+        setTotalPaginasReservas(data.paginacion.total_paginas || 1);
+      }
+      setPaginaReservas(pagina);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo cargar reservas.');
+    }
+  };
 
   const cargarTodo = async () => {
     setLoading(true);
     limpiarMensajes();
     try {
-      const [resAeropuertos, resVuelos, resUsuarios, resReservas, resStats] = await Promise.all([
+      const [resAeropuertos, resStats] = await Promise.all([
         fetch(`${API_BASE_URL}/admin/aeropuertos`),
-        fetch(`${API_BASE_URL}/admin/vuelos`),
-        fetch(`${API_BASE_URL}/admin/usuarios`),
-        fetch(`${API_BASE_URL}/admin/reservas`),
         fetch(`${API_BASE_URL}/admin/estadisticas`),
       ]);
 
-      const [dataAeropuertos, dataVuelos, dataUsuarios, dataReservas, dataStats] = await Promise.all([
+      const [dataAeropuertos, dataStats] = await Promise.all([
         resAeropuertos.json(),
-        resVuelos.json(),
-        resUsuarios.json(),
-        resReservas.json(),
         resStats.json(),
       ]);
 
       if (!resAeropuertos.ok) throw new Error(dataAeropuertos.error || 'No se pudieron cargar aeropuertos.');
-      if (!resVuelos.ok) throw new Error(dataVuelos.error || 'No se pudieron cargar vuelos.');
-      if (!resUsuarios.ok) throw new Error(dataUsuarios.error || 'No se pudieron cargar usuarios.');
-      if (!resReservas.ok) throw new Error(dataReservas.error || 'No se pudieron cargar reservas.');
       if (!resStats.ok) throw new Error(dataStats.error || 'No se pudieron cargar estadísticas.');
 
       setAeropuertos(Array.isArray(dataAeropuertos.aeropuertos) ? dataAeropuertos.aeropuertos : []);
-      setVuelos(Array.isArray(dataVuelos.vuelos) ? dataVuelos.vuelos : []);
-      setUsuarios(Array.isArray(dataUsuarios.usuarios) ? dataUsuarios.usuarios : []);
-      setReservas(Array.isArray(dataReservas.reservas) ? dataReservas.reservas : []);
       setRecaudacionMensual(Array.isArray(dataStats.recaudacion_mensual) ? dataStats.recaudacion_mensual : []);
       setVuelosReservados(Number(dataStats.vuelos_reservados || 0));
       setVuelosCancelados(Number(dataStats.vuelos_cancelados || 0));
       setDestinosMasPedidos(Array.isArray(dataStats.destinos_mas_pedidos) ? dataStats.destinos_mas_pedidos : []);
+
+      // Cargar con paginación
+      await Promise.all([
+        cargarVuelos(1),
+        cargarUsuarios(1),
+        cargarReservas(1),
+      ]);
     } catch (err: any) {
       setError(err?.message || 'No se pudo cargar el panel de administración.');
     } finally {
@@ -356,7 +431,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
       setMensaje(isEdit ? 'Vuelo actualizado correctamente.' : 'Vuelo creado correctamente.');
       resetVueloForm();
-      await cargarTodo();
+      await cargarVuelos(1);
     } catch {
       setError('No se pudo conectar con el servidor para guardar el vuelo.');
     } finally {
@@ -377,7 +452,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
       if (editandoVueloId === vueloId) {
         resetVueloForm();
       }
-      await cargarTodo();
+      await cargarVuelos(1);
     } catch {
       setError('No se pudo conectar con el servidor para eliminar el vuelo.');
     } finally {
@@ -460,7 +535,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
       setMensaje(isEdit ? 'Usuario actualizado correctamente.' : 'Usuario creado correctamente.');
       resetUsuarioForm();
-      await cargarTodo();
+      await cargarUsuarios(1);
     } catch {
       setError('No se pudo conectar con el servidor para guardar el usuario.');
     } finally {
@@ -488,7 +563,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
       if (editandoUsuarioId === usuarioId) {
         resetUsuarioForm();
       }
-      await cargarTodo();
+      await cargarUsuarios(1);
     } catch {
       setError(estaActivo
         ? 'No se pudo conectar con el servidor para desactivar el usuario.'
@@ -522,7 +597,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
   };
 
   const toggleSeleccionTodasReservas = () => {
-    const reservasIds = reservas
+    const reservasIds = reservasFiltradas
       .filter((r) => r && typeof r === 'object' && r.reserva_id)
       .map((r) => r.reserva_id);
 
@@ -555,8 +630,9 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
       const fallidas = resultados.filter((r) => !r.ok);
 
       if (exitosas.length > 0) {
-        setReservas((prev) => prev.filter((r) => !exitosas.includes(r.reserva_id)));
-        setReservasSeleccionadas((prev) => prev.filter((id) => !exitosas.includes(id)));
+        setReservasSeleccionadas([]);
+        // Recargar reservas desde el servidor
+        await cargarReservas(1);
       }
 
       if (fallidas.length > 0) {
@@ -618,7 +694,7 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
     }
   };
 
-  const reservasIds = reservas
+  const reservasIds = reservasFiltradas
     .filter((r) => r && typeof r === 'object' && r.reserva_id)
     .map((r) => r.reserva_id);
   const todasReservasSeleccionadas = reservasIds.length > 0 && reservasIds.every((id) => reservasSeleccionadas.includes(id));
@@ -804,7 +880,9 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
             <div className="overflow-x-auto rounded-3xl bg-white p-4 shadow">
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h3 className="text-xl font-semibold text-slate-900">Listado de vuelos ({vuelosFiltrados.length})</h3>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  Listado de vuelos ({paginacionVuelos?.total_registros || 0})
+                </h3>
                 <input
                   type="text"
                   value={busquedaVuelos}
@@ -870,6 +948,64 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                   )}
                 </tbody>
               </table>
+
+              {/* Paginador */}
+              {paginacionVuelos && (
+                <div className="mt-6 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => cargarVuelos(1)}
+                    disabled={paginaVuelos === 1}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Primera página"
+                  >
+                    «
+                  </button>
+                  <button
+                    onClick={() => cargarVuelos(Math.max(1, paginaVuelos - 1))}
+                    disabled={paginaVuelos === 1}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Página anterior"
+                  >
+                    ‹
+                  </button>
+
+                  {/* Botones de páginas */}
+                  {Array.from({ length: paginacionVuelos.total_paginas }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => cargarVuelos(page)}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        page === paginaVuelos
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => cargarVuelos(Math.min(paginacionVuelos.total_paginas, paginaVuelos + 1))}
+                    disabled={paginaVuelos === paginacionVuelos.total_paginas}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Página siguiente"
+                  >
+                    ›
+                  </button>
+                  <button
+                    onClick={() => cargarVuelos(paginacionVuelos.total_paginas)}
+                    disabled={paginaVuelos === paginacionVuelos.total_paginas}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Última página"
+                  >
+                    »
+                  </button>
+
+                  <span className="ml-4 text-sm text-slate-600">
+                    Página {paginaVuelos} de {paginacionVuelos.total_paginas}
+                  </span>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -984,7 +1120,9 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
 
             <div className="overflow-x-auto rounded-3xl bg-white p-4 shadow">
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h3 className="text-xl font-semibold text-slate-900">Usuarios registrados ({usuariosFiltrados.length})</h3>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  Usuarios registrados ({paginacionUsuarios?.total_registros || 0})
+                </h3>
                 <input
                   type="text"
                   value={busquedaUsuarios}
@@ -1060,6 +1198,64 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                   )}
                 </tbody>
               </table>
+
+              {/* Paginador */}
+              {paginacionUsuarios && (
+                <div className="mt-6 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => cargarUsuarios(1)}
+                    disabled={paginaUsuarios === 1}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Primera página"
+                  >
+                    «
+                  </button>
+                  <button
+                    onClick={() => cargarUsuarios(Math.max(1, paginaUsuarios - 1))}
+                    disabled={paginaUsuarios === 1}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Página anterior"
+                  >
+                    ‹
+                  </button>
+
+                  {/* Botones de páginas */}
+                  {Array.from({ length: paginacionUsuarios.total_paginas }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => cargarUsuarios(page)}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        page === paginaUsuarios
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => cargarUsuarios(Math.min(paginacionUsuarios.total_paginas, paginaUsuarios + 1))}
+                    disabled={paginaUsuarios === paginacionUsuarios.total_paginas}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Página siguiente"
+                  >
+                    ›
+                  </button>
+                  <button
+                    onClick={() => cargarUsuarios(paginacionUsuarios.total_paginas)}
+                    disabled={paginaUsuarios === paginacionUsuarios.total_paginas}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    title="Última página"
+                  >
+                    »
+                  </button>
+
+                  <span className="ml-4 text-sm text-slate-600">
+                    Página {paginaUsuarios} de {paginacionUsuarios.total_paginas}
+                  </span>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -1067,7 +1263,9 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
         {!loading && activeTab === 'reservas' && (
           <section className="overflow-x-auto rounded-3xl bg-white p-4 shadow">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">Pasajes reservados ({Array.isArray(reservas) ? reservas.length : 0})</h2>
+              <h2 className="text-2xl font-bold text-slate-900">
+                Pasajes reservados ({paginacionReservas?.total_registros || 0})
+              </h2>
               <button
                 type="button"
                 onClick={handleEliminarReservasSeleccionadas}
@@ -1098,8 +1296,8 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                 </tr>
               </thead>
               <tbody>
-                {Array.isArray(reservas) && reservas.length > 0 ? (
-                  reservas.map((r) => {
+                {reservasFiltradas && reservasFiltradas.length > 0 ? (
+                  reservasFiltradas.map((r) => {
                     if (!r || typeof r !== 'object' || !r.reserva_id) return null;
                     return (
                       <tr key={r.reserva_id} className="border-t border-slate-100">
@@ -1130,6 +1328,64 @@ export default function AdminDashboard({ usuario, onLogout }: AdminDashboardProp
                 )}
               </tbody>
             </table>
+
+            {/* Paginador */}
+            {paginacionReservas && (
+              <div className="mt-6 flex items-center justify-center gap-2">
+                <button
+                  onClick={() => cargarReservas(1)}
+                  disabled={paginaReservas === 1}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  title="Primera página"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => cargarReservas(Math.max(1, paginaReservas - 1))}
+                  disabled={paginaReservas === 1}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  title="Página anterior"
+                >
+                  ‹
+                </button>
+
+                {/* Botones de páginas */}
+                {Array.from({ length: paginacionReservas.total_paginas }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => cargarReservas(page)}
+                    className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      page === paginaReservas
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => cargarReservas(Math.min(paginacionReservas.total_paginas, paginaReservas + 1))}
+                  disabled={paginaReservas === paginacionReservas.total_paginas}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  title="Página siguiente"
+                >
+                  ›
+                </button>
+                <button
+                  onClick={() => cargarReservas(paginacionReservas.total_paginas)}
+                  disabled={paginaReservas === paginacionReservas.total_paginas}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  title="Última página"
+                >
+                  »
+                </button>
+
+                <span className="ml-4 text-sm text-slate-600">
+                  Página {paginaReservas} de {paginacionReservas.total_paginas}
+                </span>
+              </div>
+            )}
           </section>
         )}
 

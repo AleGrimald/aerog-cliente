@@ -659,11 +659,18 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadReserva),
       });
-      const dataReserva = await responseReserva.json();
-      
+
+      let dataReserva;
+      try {
+        dataReserva = await responseReserva.json();
+      } catch (e) {
+        console.error('[RESERVA] No se pudo parsear respuesta como JSON:', responseReserva.status, responseReserva.statusText);
+        dataReserva = {};
+      }
+
       if (!responseReserva.ok) {
-        console.error('[RESERVA] Error creando reserva:', dataReserva);
-        setMensajeReserva({ tipo: 'error', texto: dataReserva.error || 'No se pudo crear la reserva.' });
+        console.error('[RESERVA] Error creando reserva:', { status: responseReserva.status, data: dataReserva });
+        setMensajeReserva({ tipo: 'error', texto: dataReserva.error || `Error: ${responseReserva.status} ${responseReserva.statusText}` });
         return;
       }
       
@@ -684,18 +691,17 @@ export default function ReservationForm({ vuelo, usuario, cantidadPasajeros, onR
             puntos_a_usar: Math.max(0, Math.min(puntosACanjear, puntosDisponibles)),
           }),
         });
-        const rawPagoQr = await responsePagoQr.text();
+
         let dataPagoQr: any = {};
-        if (rawPagoQr) {
-          try {
-            dataPagoQr = JSON.parse(rawPagoQr);
-          } catch {
-            dataPagoQr = {};
-          }
+        try {
+          dataPagoQr = await responsePagoQr.json();
+        } catch (e) {
+          console.error('[PAGO] No se pudo parsear respuesta QR como JSON:', responsePagoQr.status, responsePagoQr.statusText);
+          dataPagoQr = {};
         }
-        
+
         if (!responsePagoQr.ok) {
-          console.error('[PAGO] Error generando pago QR:', dataPagoQr);
+          console.error('[PAGO] Error generando pago QR:', { status: responsePagoQr.status, data: dataPagoQr });
           setMensajeReserva({
             tipo: 'error',
             texto: dataPagoQr.error || `No se pudo generar el pago QR (HTTP ${responsePagoQr.status}).`,
